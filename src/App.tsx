@@ -25,3 +25,5 @@ function App() {
 }
 
 export default App;
+
+// src/contexts/AuthContext.tsx
