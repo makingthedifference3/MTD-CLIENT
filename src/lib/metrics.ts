@@ -23,7 +23,11 @@ export function calculateDashboardMetrics(
     filtered = filtered.filter((project) => project.state === state);
   }
 
-  const totalBeneficiaries = filtered.reduce((sum, project) => sum + (project.beneficiaries_current ?? 0), 0);
+  const beneficiaryComponents = ['direct_beneficiaries', 'indirect_beneficiaries', 'male_beneficiaries', 'female_beneficiaries', 'children_beneficiaries'] as const;
+  type BeneficiaryComponentKey = (typeof beneficiaryComponents)[number];
+  const totalBeneficiaries = filtered.reduce((sum, project) => {
+    return sum + beneficiaryComponents.reduce((partial, key: BeneficiaryComponentKey) => partial + (project[key] ?? 0), 0);
+  }, 0);
   const targetBeneficiaries = filtered.reduce((sum, project) => sum + (project.beneficiaries_target ?? 0), 0);
   const totalBudget = filtered.reduce((sum, project) => sum + (project.total_budget ?? 0), 0);
   const utilizedBudget = filtered.reduce((sum, project) => sum + (project.utilized_budget ?? 0), 0);
@@ -46,6 +50,15 @@ export function calculateDashboardMetrics(
       aggregated[key].current += value.current ?? 0;
       aggregated[key].target += value.target ?? 0;
     });
+  });
+
+  const directMetricKeys = ['pads_distributed', 'trees_planted', 'meals_served', 'students_enrolled', 'schools_renovated'] as const;
+  type DirectMetricKey = (typeof directMetricKeys)[number];
+  directMetricKeys.forEach((key: DirectMetricKey) => {
+    const metricTotal = filtered.reduce((sum, project) => sum + (project[key] ?? 0), 0);
+    if (metricTotal > 0) {
+      aggregated[key] = { current: metricTotal, target: metricTotal };
+    }
   });
 
   return aggregated;

@@ -22,36 +22,38 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
 
 const createUsers = async () => {
   const users = [
-    { email: 'client@interise.com', password: 'demo123', full_name: 'Interise Client', role: 'client' },
-    { email: 'client@tcs.com', password: 'demo123', full_name: 'TCS Marathon Team', role: 'client' }
+    // { email: 'client@interise.com', password: 'demo123', full_name: 'Interise Client', role: 'client' },
+    { email: 'client1@tcs.com', password: 'demo123', full_name: 'TCS Marathon Team', role: 'client' },
+    { email: 'client1@amazon.com', password: 'demo123', full_name: 'Amazon CSR', role: 'client' },
   ]
 
   for (const user of users) {
     // Hash the password with bcrypt for your own table
     const hashedPassword = await bcrypt.hash(user.password, 10)
 
-    // Find the user by email to get the auth_id
-    const { data: userData, error: userFetchError } = await supabase.from('users').select('auth_id').eq('email', user.email).single()
-    if (userFetchError || !userData) {
-      console.error(`❌ Could not find user in users table for ${user.email}:`, userFetchError?.message)
-      continue
-    }
-
-    // Update password in Supabase Auth
-    const { error: authError } = await supabase.auth.admin.updateUserById(userData.auth_id, {
-      password: user.password
+    // Insert user into Supabase Auth
+    const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
+      email: user.email,
+      password: user.password,
+      email_confirm: true
     })
     if (authError) {
       console.error(`❌ Auth error for ${user.email}:`, authError.message)
       continue
     }
 
-    // Update hashed password in your own users table
-    const { error: updateError } = await supabase.from('users').update({ password: hashedPassword }).eq('auth_id', userData.auth_id)
-    if (updateError) {
-      console.error(`❌ Update error for ${user.email}:`, updateError.message)
+    // Insert user into your own users table
+    const { error: insertError } = await supabase.from('users').insert({
+      email: user.email,
+      full_name: user.full_name,
+      role: user.role,
+      password: hashedPassword,
+      auth_id: authUser.user?.id
+    })
+    if (insertError) {
+      console.error(`❌ Insert error for ${user.email}:`, insertError.message)
     } else {
-      console.log(`✅ Password updated for: ${user.email}`)
+      console.log(`✅ User inserted: ${user.email}`)
     }
   }
 }

@@ -68,7 +68,7 @@ export default function Portal() {
         const { data: projectRows, error: projectError } = await supabase
           .from('projects')
           .select(
-            'id, csr_partner_id, name, project_code, description, status, location, state, city, start_date, expected_end_date, actual_end_date, total_budget, approved_budget, utilized_budget, beneficiaries_reached, total_beneficiaries, direct_beneficiaries, indirect_beneficiaries, targets, achievements, created_at'
+            'id, csr_partner_id, name, project_code, description, status, location, state, city, start_date, expected_end_date, actual_end_date, total_budget, approved_budget, utilized_budget, beneficiaries_reached, total_beneficiaries, direct_beneficiaries, indirect_beneficiaries, male_beneficiaries, female_beneficiaries, children_beneficiaries, pads_distributed, trees_planted, meals_served, students_enrolled, schools_renovated, targets, achievements, created_at'
           )
           .eq('csr_partner_id', partnerId)
           .order('start_date', { ascending: false });

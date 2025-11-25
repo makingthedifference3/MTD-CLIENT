@@ -340,13 +340,14 @@ export default function Dashboard({ selectedProject, projects, loading }: Dashbo
           />
 
           {/* Project-specific metrics */}
-          {metrics.pads_donated && (
+          {metrics.pads_distributed && (
             <MetricCard
-              title="🩺 PADS DONATED"
-              current={metrics.pads_donated.current}
-              target={metrics.pads_donated.target}
+              title="🩺 PADS DISTRIBUTED"
+              current={metrics.pads_distributed.current}
+              target={metrics.pads_distributed.target}
+              hideTarget
               gradient="from-pink-100 via-rose-100 to-red-100"
-              onClick={() => setSelectedMetric('pads_donated')}
+              onClick={() => setSelectedMetric('pads_distributed')}
             />
           )}
           {metrics.sessions_conducted && (
@@ -363,6 +364,7 @@ export default function Dashboard({ selectedProject, projects, loading }: Dashbo
               title="🎓 STUDENTS ENROLLED"
               current={metrics.students_enrolled.current}
               target={metrics.students_enrolled.target}
+              hideTarget
               gradient="from-blue-100 via-indigo-100 to-violet-100"
               onClick={() => setSelectedMetric('students_enrolled')}
             />
@@ -372,6 +374,7 @@ export default function Dashboard({ selectedProject, projects, loading }: Dashbo
               title="🏫 SCHOOLS RENOVATED"
               current={metrics.schools_renovated.current}
               target={metrics.schools_renovated.target}
+              hideTarget
               gradient="from-cyan-100 via-sky-100 to-blue-100"
               onClick={() => setSelectedMetric('schools_renovated')}
             />
@@ -394,13 +397,14 @@ export default function Dashboard({ selectedProject, projects, loading }: Dashbo
               onClick={() => setSelectedMetric('scholarships_given')}
             />
           )}
-          {metrics.meals_distributed && (
+          {metrics.meals_served && (
             <MetricCard
-              title="�️ MEALS DISTRIBUTED"
-              current={metrics.meals_distributed.current}
-              target={metrics.meals_distributed.target}
+              title="�️ MEALS SERVED"
+              current={metrics.meals_served.current}
+              target={metrics.meals_served.target}
+              hideTarget
               gradient="from-lime-100 via-green-100 to-emerald-100"
-              onClick={() => setSelectedMetric('meals_distributed')}
+              onClick={() => setSelectedMetric('meals_served')}
             />
           )}
           {metrics.ration_kits_distributed && (
@@ -435,6 +439,7 @@ export default function Dashboard({ selectedProject, projects, loading }: Dashbo
               title="🌳 TREES PLANTED"
               current={metrics.trees_planted.current}
               target={metrics.trees_planted.target}
+              hideTarget
               gradient="from-green-100 via-emerald-100 to-teal-100"
               onClick={() => setSelectedMetric('trees_planted')}
             />
@@ -552,6 +557,7 @@ function MetricCard({
   target,
   gradient = 'from-blue-50 to-indigo-100',
   isCurrency = false,
+  hideTarget = false,
   onClick
 }: {
   title: string;
@@ -559,9 +565,12 @@ function MetricCard({
   target: number;
   gradient?: string;
   isCurrency?: boolean;
+  hideTarget?: boolean;
   onClick?: () => void;
 }) {
-  const percentage = Math.min((current / target) * 100, 100);
+  const displayTarget = !hideTarget && target > 0;
+  const effectiveTarget = displayTarget ? target : Math.max(current, 1);
+  const percentage = Math.min((current / effectiveTarget) * 100, 100);
   
   // Format number for display
   const formatNumber = (num: number) => {
@@ -626,8 +635,12 @@ function MetricCard({
           filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))'
         }}>
           {formatNumber(current)}
-          <span className="text-2xl text-slate-400/80 font-bold mx-1">/</span>
-          <span className="text-3xl font-bold text-slate-500/70">{formatNumber(target)}</span>
+          {displayTarget && (
+            <>
+              <span className="text-2xl text-slate-400/80 font-bold mx-1">/</span>
+              <span className="text-3xl font-bold text-slate-500/70">{formatNumber(target)}</span>
+            </>
+          )}
         </p>
         
         {/* Premium Progress Bar */}

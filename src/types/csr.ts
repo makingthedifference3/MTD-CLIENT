@@ -37,6 +37,16 @@ export interface Project {
   beneficiaries_current: number;
   beneficiaries_target: number;
   project_metrics?: Record<string, ProjectMetric>;
+  direct_beneficiaries?: number;
+  indirect_beneficiaries?: number;
+  male_beneficiaries?: number;
+  female_beneficiaries?: number;
+  children_beneficiaries?: number;
+  pads_distributed?: number;
+  trees_planted?: number;
+  meals_served?: number;
+  students_enrolled?: number;
+  schools_renovated?: number;
 }
 
 export interface Timeline {

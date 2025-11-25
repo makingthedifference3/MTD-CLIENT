@@ -28,6 +28,14 @@ interface ProjectRow {
   total_beneficiaries?: number | null;
   direct_beneficiaries?: number | null;
   indirect_beneficiaries?: number | null;
+  male_beneficiaries?: number | null;
+  female_beneficiaries?: number | null;
+  children_beneficiaries?: number | null;
+  pads_distributed?: number | null;
+  trees_planted?: number | null;
+  meals_served?: number | null;
+  students_enrolled?: number | null;
+  schools_renovated?: number | null;
   targets?: Record<string, number> | null;
   achievements?: Record<string, number> | null;
   metadata?: Record<string, unknown> | null;
@@ -151,6 +159,16 @@ export const mapProjects = (rows: ProjectRow[]): Project[] =>
       utilized_budget: safeNumber(row.utilized_budget),
       beneficiaries_current: safeNumber(row.beneficiaries_reached ?? row.direct_beneficiaries),
       beneficiaries_target: safeNumber(row.total_beneficiaries ?? row.indirect_beneficiaries),
+      direct_beneficiaries: safeNumber(row.direct_beneficiaries),
+      indirect_beneficiaries: safeNumber(row.indirect_beneficiaries),
+      male_beneficiaries: safeNumber(row.male_beneficiaries),
+      female_beneficiaries: safeNumber(row.female_beneficiaries),
+      children_beneficiaries: safeNumber(row.children_beneficiaries),
+      pads_distributed: safeNumber(row.pads_distributed),
+      trees_planted: safeNumber(row.trees_planted),
+      meals_served: safeNumber(row.meals_served),
+      students_enrolled: safeNumber(row.students_enrolled),
+      schools_renovated: safeNumber(row.schools_renovated),
       project_metrics: buildProjectMetrics(row.targets, row.achievements),
     }));
 
