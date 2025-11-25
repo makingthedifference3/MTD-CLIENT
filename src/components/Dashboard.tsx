@@ -1,13 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, type CSSProperties } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { projects as allProjects, getDashboardMetrics } from '../data/mockData';
+import type { Project } from '../types/csr';
+import { calculateDashboardMetrics } from '../lib/metrics';
 import { getBrandColors } from '../lib/logodev';
 import { X } from 'lucide-react';
 
 interface DashboardProps {
   selectedProject: string | null;
-  projects: Array<{ id: string; name: string; state?: string }>;
+  projects: Project[];
+  loading?: boolean;
 }
+
+type SelectOption = { value: string; label: string };
 
 interface DashboardMetrics {
   beneficiaries: { current: number; target: number };
@@ -22,7 +26,7 @@ interface MetricBreakdown {
   value: number;
 }
 
-export default function Dashboard({ selectedProject }: DashboardProps) {
+export default function Dashboard({ selectedProject, projects, loading }: DashboardProps) {
   const { partner } = useAuth();
   const [selectedState, setSelectedState] = useState('ALL STATES');
   const [selectedMetric, setSelectedMetric] = useState<string | null>(null);
@@ -31,35 +35,105 @@ export default function Dashboard({ selectedProject }: DashboardProps) {
     budget: { current: 0, target: 0 },
     projects_active: { current: 0, target: 0 },
   });
+  const [selectedProjectGroup, setSelectedProjectGroup] = useState('all');
+  const [projectDateFilter, setProjectDateFilter] = useState('together');
 
   // Get brand colors based on partner's primary color
-  const brandColors = partner ? getBrandColors(partner.primary_color) : null;
+  const brandColors = partner ? getBrandColors(partner.primary_color || '#2563eb') : null;
 
-  // Get unique states based on selected project or all projects
-  const states = partner ? [...new Set(allProjects
-    .filter(p => p.csr_partner_id === partner.id && (!selectedProject || p.id === selectedProject))
-    .map(p => p.state))] : [];
+  const states = useMemo(() => {
+    if (!partner) return [] as string[];
+    return Array.from(new Set(projects.map((project) => project.state).filter(Boolean))) as string[];
+  }, [partner, projects]);
+
+  const normalizeDateValue = (value?: string) => {
+    if (!value) return 'unknown';
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? 'unknown' : parsed.toISOString().slice(0, 10);
+  };
+
+  const projectGroups = useMemo(() => {
+    const map = new Map<string, Project[]>();
+    projects.forEach((project) => {
+      const name = project.name || 'Unnamed Project';
+      if (!map.has(name)) {
+        map.set(name, []);
+      }
+      map.get(name)!.push(project);
+    });
+    return map;
+  }, [projects]);
+
+  const projectGroupOptions = useMemo<SelectOption[]>(
+    () =>
+      Array.from(projectGroups.keys())
+        .sort()
+        .map((name) => ({ value: name, label: name })),
+    [projectGroups]
+  );
+
+  useEffect(() => {
+    if (!selectedProject) {
+      setSelectedProjectGroup('all');
+      setProjectDateFilter('together');
+      return;
+    }
+    const project = projects.find((item) => item.id === selectedProject);
+    if (project) {
+      setSelectedProjectGroup(project.name || 'Unnamed Project');
+      setProjectDateFilter('together');
+    }
+  }, [selectedProject, projects]);
+
+  const selectedGroupProjects =
+    selectedProjectGroup === 'all'
+      ? projects
+      : projectGroups.get(selectedProjectGroup) ?? [];
+
+  const projectDateOptions = useMemo<SelectOption[]>(() => {
+    if (selectedProjectGroup === 'all') return [];
+    const activeGroup = projectGroups.get(selectedProjectGroup) ?? [];
+    if (activeGroup.length <= 1) return [];
+    const unique = new Map<string, string>();
+    activeGroup.forEach((project) => {
+      const value = normalizeDateValue(project.start_date);
+      if (!unique.has(value)) {
+        unique.set(
+          value,
+          value === 'unknown'
+            ? 'Date unavailable'
+            : new Date(value).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
+        );
+      }
+    });
+    return Array.from(unique.entries()).map(([value, label]) => ({ value, label }));
+  }, [projectGroups, selectedProjectGroup]);
+
+  const filteredProjects = useMemo(() => {
+    const stateConstraint = selectedState === 'ALL STATES' ? undefined : selectedState;
+    let workingSet = selectedGroupProjects;
+    if (stateConstraint) {
+      workingSet = workingSet.filter((project) => project.state === stateConstraint);
+    }
+    if (selectedProjectGroup !== 'all' && projectDateFilter !== 'together') {
+      workingSet = workingSet.filter((project) => normalizeDateValue(project.start_date) === projectDateFilter);
+    }
+    return workingSet;
+  }, [selectedGroupProjects, selectedState, selectedProjectGroup, projectDateFilter]);
 
   useEffect(() => {
     if (!partner) return;
 
-    const stateFilter = selectedState === 'ALL STATES' ? undefined : selectedState;
-    const projectFilter = selectedProject || undefined;
-    
-    const newMetrics = getDashboardMetrics(partner.id, projectFilter, stateFilter);
+    const partnerProjects = filteredProjects.filter((project) => project.csr_partner_id === partner.id);
+    const newMetrics = calculateDashboardMetrics(partnerProjects);
     setMetrics(newMetrics as DashboardMetrics);
-  }, [selectedProject, partner, selectedState]);
+  }, [filteredProjects, partner]);
 
   // Get breakdown data for a metric
   const getMetricBreakdown = (metricKey: string): MetricBreakdown[] => {
     if (!partner) return [];
-    
-    const stateFilter = selectedState === 'ALL STATES' ? undefined : selectedState;
-    const projectFilter = selectedProject || undefined;
-    
-    let relevantProjects = allProjects.filter(p => p.csr_partner_id === partner.id);
-    if (projectFilter) relevantProjects = relevantProjects.filter(p => p.id === projectFilter);
-    if (stateFilter) relevantProjects = relevantProjects.filter(p => p.state === stateFilter);
+
+    const relevantProjects = filteredProjects.filter((project) => project.csr_partner_id === partner.id);
 
     const breakdown: MetricBreakdown[] = [];
 
@@ -118,6 +192,8 @@ export default function Dashboard({ selectedProject }: DashboardProps) {
     background: `linear-gradient(135deg, ${brandColors.lighter}15, ${brandColors.primary}08, ${brandColors.darker}15)`
   } : {};
 
+  const isEmpty = !loading && projects.length === 0;
+
   return (
     <div className="flex-1 overflow-auto rounded-b-3xl" style={bgStyle}>
       <div className="p-8">
@@ -132,7 +208,7 @@ export default function Dashboard({ selectedProject }: DashboardProps) {
               style={{ 
                 background: brandColors?.gradient || 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 '--tw-ring-color': brandColors?.lighter || '#faf5ff'
-              } as React.CSSProperties}
+              } as CSSProperties}
             >
               <span className="text-5xl filter drop-shadow-lg">📊</span>
             </div>
@@ -159,27 +235,87 @@ export default function Dashboard({ selectedProject }: DashboardProps) {
           </div>
         </div>
 
-        {/* State Filter */}
-        <div className="flex justify-end mb-8">
-          <div className="relative">
+        <div className="flex flex-wrap justify-between items-end gap-4 mb-8">
+          <div className="flex flex-wrap items-end gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Project</p>
+              <select
+                value={selectedProjectGroup}
+                onChange={(e) => {
+                  setSelectedProjectGroup(e.target.value);
+                  setProjectDateFilter('together');
+                }}
+                className="mt-1 px-5 py-3 bg-white/80 border-2 rounded-2xl font-semibold text-xs uppercase tracking-wide focus:outline-none focus:ring-4 shadow-lg hover:shadow-xl transition-all cursor-pointer"
+                style={{
+                  borderColor: brandColors?.primary || '#a78bfa',
+                  '--tw-ring-color': brandColors?.primary || '#a78bfa',
+                } as CSSProperties}
+              >
+                <option value="all">All Projects</option>
+                {projectGroupOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {(selectedProjectGroup !== 'all' && (projectGroups.get(selectedProjectGroup)?.length ?? 0) > 1) && (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Date</p>
+                <select
+                  value={projectDateFilter}
+                  onChange={(e) => setProjectDateFilter(e.target.value)}
+                  className="mt-1 px-5 py-3 bg-white/80 border-2 rounded-2xl font-semibold text-xs uppercase tracking-wide focus:outline-none focus:ring-4 shadow-lg hover:shadow-xl transition-all cursor-pointer"
+                  style={{
+                    borderColor: brandColors?.primary || '#a78bfa',
+                    '--tw-ring-color': brandColors?.primary || '#a78bfa',
+                  } as CSSProperties}
+                >
+                  <option value="together">Together</option>
+                  {projectDateOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">State</p>
             <select
               value={selectedState}
               onChange={(e) => setSelectedState(e.target.value)}
-              className="px-6 py-3 bg-white/80 backdrop-blur-sm border-2 rounded-2xl font-semibold text-sm uppercase tracking-wide focus:outline-none focus:ring-4 shadow-lg hover:shadow-xl transition-all cursor-pointer"
+              className="mt-1 px-6 py-3 bg-white/80 border-2 rounded-2xl font-semibold text-sm uppercase tracking-wide focus:outline-none focus:ring-4 shadow-lg hover:shadow-xl transition-all cursor-pointer"
               style={{ 
                 borderColor: brandColors?.primary || '#a78bfa',
                 '--tw-ring-color': brandColors?.primary || '#a78bfa'
-              } as React.CSSProperties}
+              } as CSSProperties}
             >
               <option value="ALL STATES">ALL STATES</option>
-              {states.map(state => (
-                <option key={state} value={state || ''}>{state?.toUpperCase()}</option>
+              {states.map((state) => (
+                <option key={state} value={state || ''}>
+                  {state?.toUpperCase()}
+                </option>
               ))}
             </select>
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-6">
+        {loading && (
+          <div className="p-6 bg-white/80 border-2 border-slate-200 rounded-2xl text-center font-semibold text-slate-600">
+            Loading latest project metrics...
+          </div>
+        )}
+
+        {isEmpty && (
+          <div className="p-6 bg-white/80 border-2 border-slate-200 rounded-2xl text-center font-semibold text-slate-600">
+            No projects available for the selected filters yet.
+          </div>
+        )}
+
+        {!loading && !isEmpty && (
+          <div className="grid grid-cols-3 gap-6">
           {/* Always show these core metrics */}
           <MetricCard
             title="👥 TOTAL BENEFICIARIES"
@@ -321,10 +457,11 @@ export default function Dashboard({ selectedProject }: DashboardProps) {
               onClick={() => setSelectedMetric('communities_covered')}
             />
           )}
-        </div>
+          </div>
+        )}
 
         {/* Modal for Metric Breakdown */}
-        {selectedMetric && (
+        {selectedMetric && metrics[selectedMetric] && (
           <div 
             className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-8"
             onClick={() => setSelectedMetric(null)}
@@ -355,7 +492,7 @@ export default function Dashboard({ selectedProject }: DashboardProps) {
               {/* Modal Content */}
               <div className="p-6 overflow-y-auto max-h-[60vh]">
                 <div className="space-y-4">
-                  {getMetricBreakdown(selectedMetric).map((item, index) => (
+                      {getMetricBreakdown(selectedMetric).map((item, index) => (
                     <div 
                       key={index}
                       className="p-4 rounded-2xl border-2 border-slate-200 hover:border-purple-300 hover:bg-purple-50 transition-all duration-300"

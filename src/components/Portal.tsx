@@ -1,32 +1,141 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { projects as allProjects, type Project } from '../data/mockData';
+import type {
+  Project,
+  Timeline,
+  Report,
+  RealTimeUpdate,
+  Media as MediaAsset,
+  Article as ArticleAsset,
+} from '../types/csr';
+import { supabase } from '../lib/supabase';
+import {
+  mapProjects,
+  mapTimelines,
+  mapReports,
+  mapUpdates,
+  splitMediaArticles,
+} from '../lib/dataTransforms';
 import Sidebar from './Sidebar';
 import Dashboard from './Dashboard';
 import Timelines from './Timelines';
 import Accounts from './Accounts';
 import Reports from './Reports';
-import Media from './Media';
-import Article from './Article';
+import MediaGallery from './Media';
+import ArticleHighlights from './Article';
+import { useProjectFilters } from '../lib/projectFilters';
 import { getBrandColors, getCompanyLogo } from '../lib/logodev';
 import { LogOut } from 'lucide-react';
+
+interface PartnerCollections {
+  projects: Project[];
+  timelines: Timeline[];
+  reports: Report[];
+  updates: RealTimeUpdate[];
+  mediaPhotos: MediaAsset[];
+  mediaVideos: MediaAsset[];
+  articles: ArticleAsset[];
+}
 
 export default function Portal() {
   const { user, partner, logout } = useAuth();
   const [currentView, setCurrentView] = useState('dashboard');
-  const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [showProjectList, setShowProjectList] = useState(false);
+  const [dataLoading, setDataLoading] = useState(false);
+  const [dataError, setDataError] = useState<string | null>(null);
+  const [collections, setCollections] = useState<PartnerCollections>({
+    projects: [],
+    timelines: [],
+    reports: [],
+    updates: [],
+    mediaPhotos: [],
+    mediaVideos: [],
+    articles: [],
+  });
 
   useEffect(() => {
-    if (!partner) return;
+    if (!partner?.id) return;
+    const partnerId = partner.id;
 
-    const partnerProjects = allProjects.filter(p => p.csr_partner_id === partner.id);
-    setProjects(partnerProjects);
-    
-    // Don't auto-select a project - start with overall view
-    setSelectedProject(null);
-  }, [partner]);
+    let cancelled = false;
+
+    const loadData = async () => {
+      setDataLoading(true);
+      setDataError(null);
+
+      try {
+        const { data: projectRows, error: projectError } = await supabase
+          .from('projects')
+          .select(
+            'id, csr_partner_id, name, project_code, description, status, location, state, city, start_date, expected_end_date, actual_end_date, total_budget, approved_budget, utilized_budget, beneficiaries_reached, total_beneficiaries, direct_beneficiaries, indirect_beneficiaries, targets, achievements, created_at'
+          )
+          .eq('csr_partner_id', partnerId)
+          .order('start_date', { ascending: false });
+
+        if (projectError) throw projectError;
+
+        const mappedProjects = mapProjects(projectRows ?? []);
+        const projectIds = mappedProjects.map((project) => project.id);
+
+        let mappedTimelines: Timeline[] = [];
+        let mappedReports: Report[] = [];
+        let mappedUpdates: RealTimeUpdate[] = [];
+        let mediaPhotos: MediaAsset[] = [];
+        let mediaVideos: MediaAsset[] = [];
+        let mappedArticles: ArticleAsset[] = [];
+
+        if (projectIds.length) {
+          const [timelineRes, reportsRes, updatesRes, mediaRes] = await Promise.all([
+            supabase.from('timelines').select('*').in('project_id', projectIds),
+            supabase.from('reports').select('*').in('project_id', projectIds),
+            supabase.from('real_time_updates').select('*').in('project_id', projectIds),
+            supabase.from('media_articles').select('*').in('project_id', projectIds),
+          ]);
+
+          if (timelineRes.error) throw timelineRes.error;
+          if (reportsRes.error) throw reportsRes.error;
+          if (updatesRes.error) throw updatesRes.error;
+          if (mediaRes.error) throw mediaRes.error;
+
+          mappedTimelines = mapTimelines(timelineRes.data ?? []);
+          mappedReports = mapReports(reportsRes.data ?? []);
+          mappedUpdates = mapUpdates(updatesRes.data ?? []);
+          const mediaSplit = splitMediaArticles(mediaRes.data ?? []);
+          mediaPhotos = mediaSplit.media.filter((asset) => asset.type === 'photo');
+          mediaVideos = mediaSplit.media.filter((asset) => asset.type === 'video');
+          mappedArticles = mediaSplit.articles;
+        }
+
+        if (cancelled) return;
+
+        setCollections({
+          projects: mappedProjects,
+          timelines: mappedTimelines,
+          reports: mappedReports,
+          updates: mappedUpdates,
+          mediaPhotos,
+          mediaVideos,
+          articles: mappedArticles,
+        });
+        setSelectedProject(null);
+      } catch (error) {
+        if (cancelled) return;
+        const message = error instanceof Error ? error.message : 'Failed to load partner data';
+        setDataError(message);
+      } finally {
+        if (!cancelled) {
+          setDataLoading(false);
+        }
+      }
+    };
+
+    loadData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [partner?.id]);
 
   function handleViewChange(view: string) {
     setCurrentView(view);
@@ -36,20 +145,35 @@ export default function Portal() {
   }
 
   function handleProjectSelect(projectId: string) {
-    // Toggle project selection - if same project clicked, show overall
     setSelectedProject(selectedProject === projectId ? null : projectId);
     setCurrentView('dashboard');
   }
 
   function handleToggleProjectList() {
-    setShowProjectList(!showProjectList);
+    setShowProjectList((prev) => !prev);
   }
 
-  const projectsSimple = projects.map(p => ({ id: p.id, name: p.name, state: p.state }));
-  const currentProject = projects.find(p => p.id === selectedProject);
-  
-  // Get brand colors
-  const brandColors = partner ? getBrandColors(partner.primary_color) : null;
+  const activeProjectIds = useMemo(
+    () => collections.projects.map((project) => project.id),
+    [collections.projects]
+  );
+
+  useEffect(() => {
+    if (selectedProject && !activeProjectIds.includes(selectedProject)) {
+      setSelectedProject(null);
+    }
+  }, [activeProjectIds, selectedProject]);
+
+  const visibleProjects = collections.projects.filter((project) => activeProjectIds.includes(project.id));
+
+  // Shared project/date/state filter logic for all main views
+  const projectFilters = useProjectFilters({
+    projects: collections.projects,
+    selectedProjectId: selectedProject,
+  });
+
+  const currentProject = collections.projects.find((p) => p.id === selectedProject);
+  const brandColors = partner ? getBrandColors(partner.primary_color || '#2563eb') : null;
 
   return (
     <div className="h-screen flex overflow-hidden bg-white">
@@ -57,101 +181,146 @@ export default function Portal() {
         currentView={currentView}
         onViewChange={handleViewChange}
         selectedProject={selectedProject}
-        projects={projectsSimple}
+        projects={visibleProjects}
         onProjectSelect={handleProjectSelect}
         showProjectList={showProjectList}
         onToggleProjectList={handleToggleProjectList}
       />
 
-      <div 
+      <div
         className="flex-1 flex flex-col overflow-hidden rounded-3xl shadow-2xl m-3"
-        style={{ 
-          background: brandColors?.primary || '#667eea'
+        style={{
+          background: brandColors?.primary || '#667eea',
         }}
       >
         <div className="flex-1 flex flex-col overflow-hidden bg-white rounded-3xl">
-          <header 
+          <header
             className="px-8 py-4 h-[88px] flex items-center justify-between shadow-lg rounded-t-3xl"
-            style={{ 
+            style={{
               background: brandColors?.gradient || 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              borderBottom: `3px solid ${brandColors?.primary || '#667eea'}`
+              borderBottom: `3px solid ${brandColors?.primary || '#667eea'}`,
             }}
           >
-          <div className="flex items-center gap-6">
-            {/* Company Symbol Badge */}
-            <div 
-              className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-xl ring-4 ring-white/30 backdrop-blur-sm overflow-hidden"
-              style={{ 
-                background: 'linear-gradient(135deg, rgba(255,255,255,0.95), rgba(255,255,255,0.85))',
-                border: `2px solid ${brandColors?.primary || '#667eea'}`
-              }}
-            >
-              <img 
-                src={getCompanyLogo('mtdngo.com', { size: 56 })} 
-                alt="MTD Logo" 
-                className="w-full h-full object-contain p-1"
+            <div className="flex items-center gap-6">
+              <div
+                className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-xl ring-4 ring-white/30 backdrop-blur-sm overflow-hidden"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(255,255,255,0.95), rgba(255,255,255,0.85))',
+                  border: `2px solid ${brandColors?.primary || '#667eea'}`,
+                }}
+              >
+                <img
+                  src={getCompanyLogo('mtdngo.com', { size: 56 })}
+                  alt="MTD Logo"
+                  className="w-full h-full object-contain p-1"
+                />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-white drop-shadow-md">
+                  {currentProject?.name || 'ALL PROJECTS OVERVIEW'}
+                </h2>
+                <p className="text-sm font-semibold text-white/90 mt-1 drop-shadow">
+                  {currentProject?.state || 'All Locations'} •
+                  {currentView === 'dashboard'
+                    ? 'Dashboard'
+                    : currentView === 'timelines'
+                      ? 'Timelines'
+                      : currentView === 'accounts'
+                        ? 'Accounts'
+                        : currentView === 'reports'
+                          ? 'Reports'
+                          : currentView === 'media'
+                            ? 'Media Gallery'
+                            : currentView === 'article'
+                              ? 'News Articles'
+                              : 'Projects'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-6">
+              <div className="text-right">
+                <p className="text-xs font-semibold text-white/70 uppercase tracking-wider drop-shadow">Logged in as</p>
+                <p className="text-sm font-bold text-white drop-shadow-md">{user?.full_name}</p>
+                <p className="text-xs font-semibold text-white/80 drop-shadow">{partner?.company_name}</p>
+              </div>
+              <button
+                onClick={logout}
+                className="flex items-center gap-2 px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-all shadow-md hover:shadow-lg font-semibold"
+              >
+                <LogOut className="w-5 h-5" />
+                <span className="text-sm">Logout</span>
+              </button>
+            </div>
+          </header>
+
+          <div className="flex-1 overflow-auto bg-white rounded-b-3xl">
+            {dataError && (
+              <div className="mx-8 mt-6 mb-2 p-4 border-2 border-red-200 bg-red-50 rounded-2xl text-red-700 font-semibold">
+                {dataError}
+              </div>
+            )}
+
+            {currentView === 'dashboard' && (
+              <Dashboard
+                selectedProject={selectedProject}
+                projects={visibleProjects}
+                loading={dataLoading}
               />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-white drop-shadow-md">
-                {currentProject?.name || 'ALL PROJECTS OVERVIEW'}
-              </h2>
-              <p className="text-sm font-semibold text-white/90 mt-1 drop-shadow">
-                {currentProject?.state || 'All Locations'} • 
-                {currentView === 'dashboard' ? 'Dashboard' : 
-                     currentView === 'timelines' ? 'Timelines' : 
-                     currentView === 'accounts' ? 'Accounts' : 
-                     currentView === 'reports' ? 'Reports' : 
-                     currentView === 'media' ? 'Media Gallery' : 
-                     currentView === 'article' ? 'News Articles' : 'Projects'}
-              </p>
-            </div>
+            )}
+
+            {currentView === 'timelines' && (
+              <Timelines
+                projects={visibleProjects}
+                timelines={collections.timelines}
+                projectFilters={projectFilters}
+                brandColors={brandColors}
+                loading={dataLoading}
+              />
+            )}
+
+            {currentView === 'accounts' && (
+              <Accounts
+                projects={visibleProjects}
+                projectData={collections.projects}
+                projectFilters={projectFilters}
+                brandColors={brandColors}
+                loading={dataLoading}
+              />
+            )}
+
+            {currentView === 'reports' && (
+              <Reports
+                projects={visibleProjects}
+                updates={collections.updates}
+                reports={collections.reports}
+                projectFilters={projectFilters}
+                brandColors={brandColors}
+                loading={dataLoading}
+              />
+            )}
+
+            {currentView === 'media' && (
+              <MediaGallery
+                projects={visibleProjects}
+                photos={collections.mediaPhotos}
+                videos={collections.mediaVideos}
+                projectFilters={projectFilters}
+                brandColors={brandColors}
+                loading={dataLoading}
+              />
+            )}
+
+            {currentView === 'article' && (
+              <ArticleHighlights
+                projects={visibleProjects}
+                articles={collections.articles}
+                videos={collections.mediaVideos}
+                projectFilters={projectFilters}
+                brandColors={brandColors}
+                loading={dataLoading}
+              />
+            )}
           </div>
-
-          <div className="flex items-center gap-4">
-            <div className="text-right">
-              <p className="text-xs font-semibold text-white/70 uppercase tracking-wider drop-shadow">Logged in as</p>
-              <p className="text-sm font-bold text-white drop-shadow-md">{user?.full_name}</p>
-              <p className="text-xs font-semibold text-white/80 drop-shadow">{partner?.company_name}</p>
-            </div>
-            <button
-              onClick={logout}
-              className="flex items-center gap-2 px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-all shadow-md hover:shadow-lg font-semibold"
-            >
-              <LogOut className="w-5 h-5" />
-              <span className="text-sm">Logout</span>
-            </button>
-          </div>
-        </header>
-
-        {/* Main Content Area */}
-        <div 
-          className="flex-1 overflow-auto bg-white rounded-b-3xl"
-        >
-          {currentView === 'dashboard' && (
-            <Dashboard selectedProject={selectedProject} projects={projectsSimple} />
-          )}
-
-          {currentView === 'timelines' && (
-            <Timelines projectId={selectedProject} projects={projectsSimple} />
-          )}
-
-          {currentView === 'accounts' && (
-            <Accounts projectId={selectedProject} projects={projectsSimple} />
-          )}
-
-          {currentView === 'reports' && (
-            <Reports projectId={selectedProject} projects={projectsSimple} />
-          )}
-
-          {currentView === 'media' && (
-            <Media projectId={selectedProject} projects={projectsSimple} />
-          )}
-
-          {currentView === 'article' && (
-            <Article projectId={selectedProject} projects={projectsSimple} />
-          )}
-        </div>
         </div>
       </div>
     </div>

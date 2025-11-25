@@ -1,0 +1,269 @@
+import type {
+  Project,
+  Timeline,
+  Report,
+  RealTimeUpdate,
+  Media,
+  Article
+} from '../types/csr';
+
+interface ProjectRow {
+  id: string;
+  csr_partner_id: string | null;
+  name: string | null;
+  project_code?: string | null;
+  description?: string | null;
+  status?: string | null;
+  location?: string | null;
+  state?: string | null;
+  city?: string | null;
+  start_date?: string | null;
+  expected_end_date?: string | null;
+  actual_end_date?: string | null;
+  total_budget?: number | null;
+  approved_budget?: number | null;
+  utilized_budget?: number | null;
+  pending_budget?: number | null;
+  beneficiaries_reached?: number | null;
+  total_beneficiaries?: number | null;
+  direct_beneficiaries?: number | null;
+  indirect_beneficiaries?: number | null;
+  targets?: Record<string, number> | null;
+  achievements?: Record<string, number> | null;
+  metadata?: Record<string, unknown> | null;
+  created_at?: string | null;
+}
+
+interface TimelineRow {
+  id: string;
+  project_id: string | null;
+  title?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  actual_start_date?: string | null;
+  actual_end_date?: string | null;
+  completion_percentage?: number | null;
+  category?: string | null;
+  status?: string | null;
+  is_critical_path?: boolean | null;
+  color?: string | null;
+}
+
+interface ReportRow {
+  id: string;
+  project_id: string | null;
+  title?: string | null;
+  report_code?: string | null;
+  description?: string | null;
+  period_from?: string | null;
+  period_to?: string | null;
+  report_drive_link?: string | null;
+  generated_date?: string | null;
+  submitted_date?: string | null;
+}
+
+interface UpdateRow {
+  id: string;
+  project_id: string | null;
+  title?: string | null;
+  description?: string | null;
+  date?: string | null;
+  drive_link?: string | null;
+  documents?: { drive_link?: string } | null;
+  is_downloadable?: boolean | null;
+  beneficiaries_count?: number | null;
+  is_public?: boolean | null;
+}
+
+interface MediaArticleRow {
+  id: string;
+  project_id: string | null;
+  title?: string | null;
+  media_type?: string | null;
+  category?: string | null;
+  news_channel?: string | null;
+  drive_link?: string | null;
+  drive_folder_link?: string | null;
+  article_url?: string | null;
+  thumbnail_link?: string | null;
+  is_geo_tagged?: boolean | null;
+  captured_at?: string | null;
+  date?: string | null;
+  event_date?: string | null;
+  is_featured?: boolean | null;
+  is_downloadable?: boolean | null;
+}
+
+const toISODate = (input?: string | null) => {
+  if (!input) return new Date().toISOString().slice(0, 10);
+  const parsed = new Date(input);
+  return Number.isNaN(parsed.getTime()) ? new Date().toISOString().slice(0, 10) : parsed.toISOString().slice(0, 10);
+};
+
+const toNullableISODate = (input?: string | null) => {
+  if (!input) return undefined;
+  const parsed = new Date(input);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString().slice(0, 10);
+};
+
+const safeString = (value?: string | null, fallback = '') => value ?? fallback;
+
+const safeNumber = (value?: number | null, fallback = 0) =>
+  typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+
+const buildProjectMetrics = (
+  targets?: Record<string, number> | null,
+  achievements?: Record<string, number> | null
+): Project['project_metrics'] => {
+  if (!targets && !achievements) return undefined;
+
+  const metrics: Project['project_metrics'] = {};
+  const keys = new Set([
+    ...Object.keys(targets ?? {}),
+    ...Object.keys(achievements ?? {}),
+  ]);
+
+  keys.forEach((key) => {
+    metrics[key] = {
+      current: safeNumber(achievements?.[key]),
+      target: safeNumber(targets?.[key]),
+    };
+  });
+
+  return Object.keys(metrics).length ? metrics : undefined;
+};
+
+export const mapProjects = (rows: ProjectRow[]): Project[] =>
+  rows
+    .filter((row) => row.id && row.csr_partner_id && row.name)
+    .map((row) => ({
+      id: row.id,
+      csr_partner_id: row.csr_partner_id as string,
+      name: row.name ?? 'Untitled Project',
+      code: safeString(row.project_code, row.id.slice(0, 8)),
+      description: row.description ?? undefined,
+      status: safeString(row.status, 'planning'),
+      location: row.location ?? row.city ?? undefined,
+      state: row.state ?? undefined,
+      start_date: toISODate(row.start_date ?? row.created_at ?? undefined),
+      end_date: row.actual_end_date ? toISODate(row.actual_end_date) : row.expected_end_date ? toISODate(row.expected_end_date) : undefined,
+      total_budget: safeNumber(row.total_budget ?? row.approved_budget ?? row.pending_budget),
+      utilized_budget: safeNumber(row.utilized_budget),
+      beneficiaries_current: safeNumber(row.beneficiaries_reached ?? row.direct_beneficiaries),
+      beneficiaries_target: safeNumber(row.total_beneficiaries ?? row.indirect_beneficiaries),
+      project_metrics: buildProjectMetrics(row.targets, row.achievements),
+    }));
+
+export const mapTimelines = (rows: TimelineRow[]): Timeline[] =>
+  rows
+    .filter((row) => row.id && row.project_id)
+    .map((row) => {
+      const completion = safeNumber(row.completion_percentage, 0);
+      const color = row.color
+        ?? (completion >= 100
+          ? '#10b981'
+          : row.status === 'completed'
+          ? '#10b981'
+          : '#8b5cf6');
+
+      const normalizedStart = row.start_date ?? row.actual_start_date;
+      const normalizedEnd = row.end_date ?? row.actual_end_date;
+
+      return {
+        id: row.id,
+        project_id: row.project_id as string,
+        title: safeString(row.title, 'Timeline Phase'),
+        start_date: toNullableISODate(normalizedStart) ?? undefined,
+        end_date: toNullableISODate(normalizedEnd ?? normalizedStart) ?? undefined,
+        completion_percentage: completion,
+        is_critical_path: Boolean(row.is_critical_path),
+        color,
+        status: row.status ?? undefined,
+        actual_start_date: toNullableISODate(row.actual_start_date),
+        actual_end_date: toNullableISODate(row.actual_end_date),
+      };
+    });
+
+export const mapReports = (rows: ReportRow[]): Report[] =>
+  rows
+    .filter((row) => row.id && row.project_id)
+    .map((row) => ({
+      id: row.id,
+      project_id: row.project_id as string,
+      title: safeString(row.title, row.report_code ?? 'Report'),
+      date: toISODate(row.generated_date ?? row.submitted_date ?? row.period_to ?? row.period_from),
+      drive_link: row.report_drive_link ?? undefined,
+    }));
+
+export const mapUpdates = (rows: UpdateRow[]): RealTimeUpdate[] =>
+  rows
+    .filter((row) => row.id && row.project_id)
+    .map((row) => ({
+      id: row.id,
+      project_id: row.project_id as string,
+      title: safeString(row.title, 'Field Update'),
+      date: toISODate(row.date),
+      description: row.description ?? '',
+      drive_link: row.drive_link ?? row.documents?.drive_link ?? undefined,
+      is_downloadable: Boolean(row.is_downloadable ?? row.is_public),
+    }));
+
+export const splitMediaArticles = (rows: MediaArticleRow[]): {
+  media: Media[];
+  articles: Article[];
+} => {
+  const media: Media[] = [];
+  const articles: Article[] = [];
+
+  rows.forEach((row) => {
+    if (!row.id || !row.project_id) return;
+
+    const mediaType = row.media_type?.toLowerCase();
+    const driveLink = row.drive_link ?? row.drive_folder_link ?? row.article_url ?? '';
+    const baseDate = toISODate(row.captured_at ?? row.event_date ?? row.date);
+    const title = safeString(row.title, 'Media Asset');
+
+    if (mediaType === 'photo' || mediaType === 'image') {
+      media.push({
+        id: row.id,
+        project_id: row.project_id,
+        title,
+        type: 'photo',
+        date: baseDate,
+        is_geo_tagged: Boolean(row.is_geo_tagged),
+        drive_link: driveLink,
+        news_channel: row.news_channel ?? undefined,
+      });
+    } else if (mediaType === 'video') {
+      media.push({
+        id: row.id,
+        project_id: row.project_id,
+        title,
+        type: 'video',
+        date: baseDate,
+        is_geo_tagged: Boolean(row.is_geo_tagged),
+        drive_link: driveLink,
+        news_channel: row.news_channel ?? undefined,
+      });
+    }
+
+    const looksLikeArticle = mediaType === 'newspaper_cutting'
+      || mediaType === 'article'
+      || mediaType === 'document'
+      || mediaType === 'report'
+      || (row.category?.toLowerCase().includes('article') ?? false);
+
+    if (looksLikeArticle) {
+      articles.push({
+        id: row.id,
+        project_id: row.project_id,
+        title,
+        date: baseDate,
+        is_featured: Boolean(row.is_featured),
+        drive_link: driveLink,
+      });
+    }
+  });
+
+  return { media, articles };
+};

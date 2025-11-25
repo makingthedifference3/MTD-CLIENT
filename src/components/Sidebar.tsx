@@ -8,7 +8,7 @@ interface SidebarProps {
   currentView: string;
   onViewChange: (view: string) => void;
   selectedProject: string | null;
-  projects: Array<{ id: string; name: string }>;
+  projects: Array<{ id: string; name: string; start_date?: string }>;
   onProjectSelect: (projectId: string) => void;
   showProjectList: boolean;
   onToggleProjectList: () => void;
@@ -27,7 +27,7 @@ export default function Sidebar({
   const [isExpanded, setIsExpanded] = useState(false);
 
   // Get brand colors
-  const brandColors = partner ? getBrandColors(partner.primary_color) : null;
+  const brandColors = partner ? getBrandColors(partner.primary_color || '#2563eb') : null;
   
   // Get shortened company name if too long
   const getShortCompanyName = (fullName: string) => {
@@ -91,7 +91,7 @@ export default function Sidebar({
           <div className="w-12 h-12 rounded-full overflow-hidden bg-white shadow-lg flex-shrink-0 ring-4 ring-white/30">
             {partner && (
               <CompanyLogo 
-                website={partner.website} 
+                website={partner.website || ''} 
                 companyName={partner.company_name}
                 size={48}
               />
@@ -149,7 +149,7 @@ export default function Sidebar({
               </button>
 
               {item.hasDropdown && showProjectList && isExpanded && (
-                <div className="mt-2 ml-4 space-y-1 animate-fadeIn">
+                <div className="mt-2 ml-4 space-y-2 animate-fadeIn">
                   {projects.map((project) => (
                     <button
                       key={project.id}
@@ -163,7 +163,14 @@ export default function Sidebar({
                         background: brandColors?.gradientReverse || 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)'
                       } : {}}
                     >
-                      {project.name}
+                      <div className="flex flex-col text-left">
+                        <span>{project.name}</span>
+                        {project.start_date && (
+                          <span className="text-[10px] uppercase tracking-widest text-white/70">
+                            {new Date(project.start_date).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
+                          </span>
+                        )}
+                      </div>
                     </button>
                   ))}
                 </div>
