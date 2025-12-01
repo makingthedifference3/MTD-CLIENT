@@ -76,6 +76,45 @@ export interface Project {
   impact_metrics?: Array<{ key: string; value: number; customLabel?: string }>;
 }
 
+export interface ProjectActivity {
+  id: string;
+  activity_code: string;
+  project_id: string;
+  csr_partner_id: string;
+  toll_id?: string;
+  title: string;
+  description?: string;
+  section: string;
+  section_order: number;
+  activity_order: number;
+  start_date?: string;
+  end_date?: string;
+  actual_start_date?: string;
+  actual_end_date?: string;
+  status: 'not_started' | 'in_progress' | 'completed' | 'on_hold' | 'cancelled';
+  completion_percentage: number;
+  assigned_to?: string;
+  responsible_person?: string;
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  remarks?: string;
+  blockers?: string;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+  // Joined fields
+  project_name?: string;
+  items?: ProjectActivityItem[];
+}
+
+export interface ProjectActivityItem {
+  id: string;
+  activity_id: string;
+  item_text: string;
+  item_order: number;
+  is_completed: boolean;
+  completed_at?: string;
+}
+
 export interface Timeline {
   id: string;
   project_id: string;

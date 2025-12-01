@@ -34,14 +34,24 @@ export default function Accounts({ projectData, projectFilters, brandColors, loa
     return map;
   }, [projectData]);
 
+  const subProjectCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    projectData.forEach((project) => {
+      if (project.parent_project_id) {
+        counts.set(project.parent_project_id, (counts.get(project.parent_project_id) || 0) + 1);
+      }
+    });
+    return counts;
+  }, [projectData]);
+
   const getNormalizedBudget = useCallback((project: Project) => {
     const parentProject = project.parent_project_id ? parentProjectMap.get(project.parent_project_id) : undefined;
-    const divisor = parentProject ? 2 : 1;
     const source = parentProject ?? project;
+    const divisor = project.parent_project_id ? Math.max(subProjectCounts.get(project.parent_project_id) || 1, 1) : 1;
     const totalBudget = sanitizeBudgetValue(source?.total_budget) / divisor;
     const utilizedBudget = sanitizeBudgetValue(source?.utilized_budget) / divisor;
     return { totalBudget, utilizedBudget };
-  }, [parentProjectMap]);
+  }, [parentProjectMap, subProjectCounts]);
 
   const { totalBudget, utilizedBudget } = useMemo(() => {
     return relevantProjects.reduce(

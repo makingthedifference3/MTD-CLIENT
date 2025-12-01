@@ -8,6 +8,8 @@ import type {
   Media as MediaAsset,
   Article as ArticleAsset,
   Toll,
+  ProjectActivity,
+  ProjectActivityItem,
 } from '../types/csr';
 import { supabase } from '../lib/supabase';
 import {
@@ -31,6 +33,7 @@ import { LogOut } from 'lucide-react';
 interface PartnerCollections {
   projects: Project[];
   timelines: Timeline[];
+  activities: ProjectActivity[];
   reports: Report[];
   updates: RealTimeUpdate[];
   mediaPhotos: MediaAsset[];
@@ -49,6 +52,7 @@ export default function Portal() {
   const [collections, setCollections] = useState<PartnerCollections>({
     projects: [],
     timelines: [],
+    activities: [],
     reports: [],
     updates: [],
     mediaPhotos: [],
@@ -96,6 +100,7 @@ export default function Portal() {
         const projectIds = mappedProjects.map((project) => project.id);
 
         let mappedTimelines: Timeline[] = [];
+        let mappedActivities: ProjectActivity[] = [];
         let mappedReports: Report[] = [];
         let mappedUpdates: RealTimeUpdate[] = [];
         let mediaPhotos: MediaAsset[] = [];
@@ -103,19 +108,54 @@ export default function Portal() {
         let mappedArticles: ArticleAsset[] = [];
 
         if (projectIds.length) {
-          const [timelineRes, reportsRes, updatesRes, mediaRes] = await Promise.all([
+          const [timelineRes, activitiesRes, reportsRes, updatesRes, mediaRes] = await Promise.all([
             supabase.from('timelines').select('*').in('project_id', projectIds),
+            supabase.from('project_activities').select(`
+              *,
+              projects:project_id (name)
+            `).in('project_id', projectIds).eq('is_active', true),
             supabase.from('reports').select('*').in('project_id', projectIds),
             supabase.from('real_time_updates').select('*').in('project_id', projectIds),
             supabase.from('media_articles').select('*').in('project_id', projectIds),
           ]);
 
           if (timelineRes.error) throw timelineRes.error;
+          if (activitiesRes.error) console.error('Activities error:', activitiesRes.error);
           if (reportsRes.error) throw reportsRes.error;
           if (updatesRes.error) throw updatesRes.error;
           if (mediaRes.error) throw mediaRes.error;
 
           mappedTimelines = mapTimelines(timelineRes.data ?? []);
+          
+          // Map activities and attach project name
+          const rawActivities = activitiesRes.data ?? [];
+          mappedActivities = rawActivities.map((a: any) => ({
+            ...a,
+            project_name: a.projects?.name,
+          }));
+
+          // Fetch activity items for all activities
+          if (mappedActivities.length > 0) {
+            const activityIds = mappedActivities.map((a) => a.id);
+            const { data: itemsData } = await supabase
+              .from('project_activity_items')
+              .select('*')
+              .in('activity_id', activityIds)
+              .order('item_order', { ascending: true });
+            
+            const itemsByActivity = new Map<string, ProjectActivityItem[]>();
+            (itemsData ?? []).forEach((item: any) => {
+              const list = itemsByActivity.get(item.activity_id) || [];
+              list.push(item);
+              itemsByActivity.set(item.activity_id, list);
+            });
+            
+            mappedActivities = mappedActivities.map((a) => ({
+              ...a,
+              items: itemsByActivity.get(a.id) || [],
+            }));
+          }
+
           mappedReports = mapReports(reportsRes.data ?? []);
           mappedUpdates = mapUpdates(updatesRes.data ?? []);
           const mediaSplit = splitMediaArticles(mediaRes.data ?? []);
@@ -129,6 +169,7 @@ export default function Portal() {
         setCollections({
           projects: mappedProjects,
           timelines: mappedTimelines,
+          activities: mappedActivities,
           reports: mappedReports,
           updates: mappedUpdates,
           mediaPhotos,
@@ -312,7 +353,8 @@ export default function Portal() {
         )}            {currentView === 'timelines' && (
               <Timelines
                 projects={visibleProjects}
-                timelines={collections.timelines}
+                // timelines={collections.timelines}
+                activities={collections.activities}
                 projectFilters={projectFilters}
                 brandColors={brandColors}
                 loading={dataLoading}
