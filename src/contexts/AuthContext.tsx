@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import type { User, CSRPartner } from '../types/csr';
-import { supabase } from '../lib/supabase';
+import { findCSRPartner, findTollUser } from '../lib/supabaseProxy';
 
 interface AuthContextType {
   user: User | null;
@@ -45,16 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let loggedInPartner: CSRPartner | null = null;
 
     // 1. Try to find as Main Partner (contact_person)
-    const { data: partnerData, error: partnerError } = await supabase
-      .from('csr_partners')
-      .select('*')
-      .ilike('contact_person', pocName)
-      .eq('poc_password', password)
-      .maybeSingle();
-
-    if (partnerError) {
-      console.error('Error finding partner:', partnerError);
-    }
+    const partnerData = await findCSRPartner(pocName, password);
 
     if (partnerData) {
       // Main Partner Login
@@ -75,16 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
     } else {
       // 2. If not found, try to find as Toll User
-      const { data: tollData, error: tollError } = await supabase
-        .from('csr_partner_tolls')
-        .select('*, csr_partners(*)')
-        .ilike('poc_name', pocName)
-        .eq('poc_password', password)
-        .maybeSingle();
-
-      if (tollError) {
-        console.error('Error finding toll user:', tollError);
-      }
+      const tollData = await findTollUser(pocName, password);
 
       if (tollData && tollData.csr_partners) {
         // Toll User Login
