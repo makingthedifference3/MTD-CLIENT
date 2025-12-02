@@ -55,13 +55,13 @@ export default function Media({ projects, photos, videos, projectFilters, brandC
   }
 
   return (
-    <div className="flex-1 bg-gradient-to-br from-slate-50 via-teal-50 to-cyan-50 overflow-auto rounded-b-3xl">
+    <div className="flex-1 bg-white overflow-auto">
       <div className="p-8">
         <div className="mb-8">
-          <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-teal-600 to-cyan-600">
-            {currentProjectName ? `📸 ${currentProjectName} - Media` : '📸 ALL PROJECTS - MEDIA'}
-          </h2>
-          <p className="text-slate-500 font-semibold mt-1">
+          <h1 className="text-4xl md:text-5xl font-bold text-slate-900 dark:text-white mb-2">
+            {currentProjectName ? `📸 ${currentProjectName}` : '📸 Media Gallery'}
+          </h1>
+          <p className="text-slate-600 dark:text-slate-400 text-lg">
             {currentProjectName ? 'Project-specific photos and videos' : 'Combined media from all projects'}
           </p>
         </div>
@@ -76,9 +76,9 @@ export default function Media({ projects, photos, videos, projectFilters, brandC
           onStateChange={projectFilters.setSelectedState}
         />
 
-        <div className="grid grid-cols-2 gap-8">
-          <div className="bg-white/80 backdrop-blur-sm rounded-3xl border-2 border-teal-200 p-6 shadow-2xl hover:shadow-teal-200 transition-all">
-            <h2 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-teal-600 to-cyan-600 mb-6 pb-4 border-b-2 border-teal-200">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-md hover:shadow-lg hover:border-emerald-300 transition-all">
+            <h2 className="text-2xl font-bold text-slate-900 mb-6 pb-4 border-b border-slate-200">
               📸 PHOTOS
             </h2>
 
@@ -86,10 +86,10 @@ export default function Media({ projects, photos, videos, projectFilters, brandC
               {groupedPhotos.map((group) => (
                 <div key={group.projectId}>
                   <div className="flex items-center gap-3 mb-3">
-                    <span className="px-3 py-1 rounded-full bg-teal-100 text-teal-700 text-xs font-black">
+                    <span className="px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold">
                       {group.projectName}
                     </span>
-                    <span className="text-[11px] font-semibold text-slate-500">
+                    <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
                       {group.items.length} photo{group.items.length !== 1 ? 's' : ''}
                     </span>
                   </div>
@@ -98,10 +98,10 @@ export default function Media({ projects, photos, videos, projectFilters, brandC
                     {group.items.map((photo) => (
                       <div
                         key={photo.id}
-                        className="flex items-center justify-between p-4 rounded-2xl hover:bg-teal-50 transition-all duration-300 group border border-transparent hover:border-teal-200"
+                        className="flex items-center justify-between p-4 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-all duration-300 group border border-transparent hover:border-slate-200 dark:hover:border-slate-600"
                       >
                         <div className="flex-1">
-                          <p className="text-sm font-bold text-slate-900 group-hover:text-teal-600 transition-colors">
+                          <p className="text-sm font-semibold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
                             {photo.is_geo_tagged && '📍 '}
                             {photo.title} - {new Date(photo.date).toLocaleDateString('en-GB')}
                           </p>
@@ -124,16 +124,16 @@ export default function Media({ projects, photos, videos, projectFilters, brandC
 
               {filteredPhotos.length > 5 && (
                 <div className="flex justify-center pt-4">
-                  <button className="p-3 hover:bg-teal-100 rounded-full transition-all hover:scale-110 duration-300 bg-teal-50">
-                    <ChevronDown className="w-5 h-5 text-teal-600" />
+                  <button className="p-3 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-all hover:scale-110 duration-300 bg-slate-50 dark:bg-slate-800">
+                    <ChevronDown className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
                   </button>
                 </div>
               )}
             </div>
           </div>
 
-          <div className="bg-white/80 backdrop-blur-sm rounded-3xl border-2 border-cyan-200 p-6 shadow-2xl hover:shadow-cyan-200 transition-all">
-            <h2 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-600 to-blue-600 mb-6 pb-4 border-b-2 border-cyan-200">
+          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-md hover:shadow-lg hover:border-emerald-300 transition-all">
+            <h2 className="text-2xl font-bold text-slate-900 mb-6 pb-4 border-b border-slate-200">
               🎥 VIDEOS
             </h2>
 
@@ -141,10 +141,10 @@ export default function Media({ projects, photos, videos, projectFilters, brandC
               {groupedVideos.map((group) => (
                 <div key={group.projectId}>
                   <div className="flex items-center gap-3 mb-3">
-                    <span className="px-3 py-1 rounded-full bg-cyan-100 text-cyan-700 text-xs font-black">
+                    <span className="px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold">
                       {group.projectName}
                     </span>
-                    <span className="text-[11px] font-semibold text-slate-500">
+                    <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
                       {group.items.length} video{group.items.length !== 1 ? 's' : ''}
                     </span>
                   </div>
@@ -153,10 +153,10 @@ export default function Media({ projects, photos, videos, projectFilters, brandC
                     {group.items.map((video) => (
                       <div
                         key={video.id}
-                        className="flex items-center justify-between p-4 rounded-2xl hover:bg-cyan-50 transition-all duration-300 group border border-transparent hover:border-cyan-200"
+                        className="flex items-center justify-between p-4 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-all duration-300 group border border-transparent hover:border-slate-200 dark:hover:border-slate-600"
                       >
                         <div className="flex-1">
-                          <p className="text-sm font-bold text-slate-900 group-hover:text-cyan-600 transition-colors">
+                          <p className="text-sm font-semibold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                             {video.is_geo_tagged && '📍 '}
                             {video.title} - {new Date(video.date).toLocaleDateString('en-GB')}
                           </p>
@@ -165,8 +165,7 @@ export default function Media({ projects, photos, videos, projectFilters, brandC
                         <button
                           onClick={() => handleDownload(video.drive_link)}
                           disabled={!video.drive_link}
-                          className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-black text-sm shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 overflow-hidden disabled:opacity-40 disabled:cursor-not-allowed"
-                          style={{ borderRadius: '9999px' }}
+                          className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white font-semibold text-sm shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 overflow-hidden disabled:opacity-40 disabled:cursor-not-allowed rounded-lg"
                         >
                           <Download className="w-4 h-4" />
                           DOWNLOADS
@@ -181,13 +180,13 @@ export default function Media({ projects, photos, videos, projectFilters, brandC
         </div>
 
         {loading && (
-          <div className="mt-6 p-6 bg-white/80 border-2 border-teal-200 rounded-2xl text-center font-semibold text-slate-600">
+          <div className="mt-6 p-6 bg-white border border-slate-200 rounded-lg text-center font-semibold text-slate-600">
             Loading media assets...
           </div>
         )}
 
         {!loading && filteredPhotos.length === 0 && filteredVideos.length === 0 && (
-          <div className="mt-6 p-6 bg-white/80 border-2 border-teal-200 rounded-2xl text-center font-semibold text-slate-600">
+          <div className="mt-6 p-6 bg-white border border-slate-200 rounded-lg text-center font-semibold text-slate-600">
             No media items found for the selected criteria.
           </div>
         )}

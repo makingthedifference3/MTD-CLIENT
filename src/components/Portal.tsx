@@ -269,18 +269,14 @@ export default function Portal() {
         onToggleProjectList={handleToggleProjectList}
       />
 
-      <div
-        className="flex-1 flex flex-col overflow-hidden rounded-3xl shadow-2xl m-3"
-        style={{
-          background: brandColors?.primary || '#667eea',
-        }}
-      >
-        <div className="flex-1 flex flex-col overflow-hidden bg-white rounded-3xl">
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden bg-white">
           <header
-            className="px-8 py-4 h-[88px] flex items-center justify-between shadow-lg rounded-t-3xl"
+            className="px-8 py-4 h-[88px] flex items-center justify-between shadow-md bg-gradient-to-r from-emerald-500 to-emerald-600"
             style={{
-              background: brandColors?.gradient || 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              borderBottom: `3px solid ${brandColors?.primary || '#667eea'}`,
+              borderBottom: '1px solid rgba(16, 185, 129, 0.2)',
+              margin: 0,
+              padding: '1rem 2rem',
             }}
           >
             <div className="flex items-center gap-6">

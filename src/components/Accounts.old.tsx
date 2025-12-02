@@ -110,13 +110,13 @@ export default function Accounts({ projectData, projectFilters, brandColors, loa
   };
 
   return (
-    <div className="flex-1 bg-white overflow-auto">
+    <div className="flex-1 bg-gradient-to-br from-slate-50 via-emerald-50 to-teal-50 overflow-auto rounded-b-3xl">
       <div className="p-8">
         <div className="mb-8">
-          <h1 className="text-4xl md:text-5xl font-bold text-slate-900 dark:text-white mb-2">
-            {currentProjectName ? `💰 ${currentProjectName}` : '💰 Budget Utilization'}
-          </h1>
-          <p className="text-slate-600 dark:text-slate-400 text-lg">
+          <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 to-teal-600">
+            {currentProjectName ? `💰 ${currentProjectName} - Funds Utilization` : '💰 ALL PROJECTS - FUNDS UTILIZATION'}
+          </h2>
+          <p className="text-slate-500 font-semibold mt-1">
             {currentProjectName ? 'Project-specific budget data' : 'Combined budget from all projects'}
           </p>
         </div>
@@ -132,13 +132,13 @@ export default function Accounts({ projectData, projectFilters, brandColors, loa
         />
 
         {loading && (
-          <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-md text-center font-semibold text-slate-600">
+          <div className="bg-white/80 backdrop-blur-sm rounded-3xl border-2 border-emerald-200 p-8 shadow-2xl text-center font-semibold text-slate-600">
             Loading budget utilization...
           </div>
         )}
 
         {isEmpty && (
-          <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-md text-center font-semibold text-slate-600">
+          <div className="bg-white/80 backdrop-blur-sm rounded-3xl border-2 border-emerald-200 p-8 shadow-2xl text-center font-semibold text-slate-600">
             No budget data available for the selected filters.
           </div>
         )}
@@ -146,7 +146,7 @@ export default function Accounts({ projectData, projectFilters, brandColors, loa
         {!loading && !isEmpty && (
           <>
             {/* Summary Card with Donut Chart */}
-            <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-md hover:shadow-lg hover:border-emerald-300 transition-all mb-8">
+            <div className="bg-white/80 backdrop-blur-sm rounded-3xl border-2 border-emerald-200 p-8 shadow-2xl mb-8">
               <h3 className="text-xl font-black text-slate-700 mb-6">📊 Overall Budget Summary</h3>
               
               <div className="flex items-center justify-center gap-16 flex-wrap">
@@ -220,7 +220,7 @@ export default function Accounts({ projectData, projectFilters, brandColors, loa
             </div>
 
             {/* Project-wise Breakdown */}
-            <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-md hover:shadow-lg hover:border-emerald-300 transition-all">
+            <div className="bg-white/80 backdrop-blur-sm rounded-3xl border-2 border-emerald-200 p-8 shadow-2xl">
               <h3 className="text-xl font-black text-slate-700 mb-6">📁 Project-wise Budget Breakdown</h3>
               
               <div className="space-y-4">

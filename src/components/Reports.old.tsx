@@ -55,13 +55,13 @@ export default function Reports({ projects, updates, reports, projectFilters, br
   }
 
   return (
-    <div className="flex-1 bg-white overflow-auto">
+    <div className="flex-1 bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50 overflow-auto rounded-b-3xl">
       <div className="p-8">
         <div className="mb-8">
-          <h1 className="text-4xl md:text-5xl font-bold text-slate-900 dark:text-white mb-2">
-            {currentProjectName ? `📄 ${currentProjectName}` : '📄 Reports & Updates'}
-          </h1>
-          <p className="text-slate-600 dark:text-slate-400 text-lg">
+          <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600">
+            {currentProjectName ? `📄 ${currentProjectName} - Reports` : '📄 ALL PROJECTS - REPORTS'}
+          </h2>
+          <p className="text-slate-500 font-semibold mt-1">
             {currentProjectName ? 'Project-specific reports and updates' : 'Combined reports from all projects'}
           </p>
         </div>
@@ -76,10 +76,10 @@ export default function Reports({ projects, updates, reports, projectFilters, br
           onStateChange={projectFilters.setSelectedState}
         />
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-md hover:shadow-lg hover:border-emerald-300 transition-all">
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6 pb-4 border-b border-slate-200 dark:border-slate-700">
-              📢 Real Time Updates
+        <div className="grid grid-cols-2 gap-8">
+          <div className="bg-white/80 backdrop-blur-sm rounded-3xl border-2 border-purple-200 p-6 shadow-2xl hover:shadow-purple-200 transition-all">
+            <h2 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600 mb-6 pb-4 border-b-2 border-purple-200">
+              📢 REAL TIME UPDATE
             </h2>
 
             <div className="space-y-6">
@@ -98,10 +98,10 @@ export default function Reports({ projects, updates, reports, projectFilters, br
                     {group.items.map((update) => (
                       <div
                         key={update.id}
-                        className="flex items-center justify-between p-4 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-900/10 transition-all duration-300 group border border-slate-200 dark:border-slate-700 hover:border-emerald-300 dark:hover:border-emerald-600"
+                        className="flex items-center justify-between p-4 rounded-2xl hover:bg-purple-50 transition-all duration-300 group border border-transparent hover:border-purple-200"
                       >
                         <div className="flex-1">
-                          <p className="text-sm font-bold text-slate-900 dark:text-slate-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                          <p className="text-sm font-bold text-slate-900 group-hover:text-purple-600 transition-colors">
                             {update.title} - {new Date(update.date).toLocaleDateString('en-GB')}
                           </p>
                         </div>
@@ -130,7 +130,7 @@ export default function Reports({ projects, updates, reports, projectFilters, br
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-md hover:shadow-lg hover:border-emerald-300 transition-all">
+          <div className="bg-white/80 backdrop-blur-sm rounded-3xl border-2 border-indigo-200 p-6 shadow-2xl hover:shadow-indigo-200 transition-all">
             <h2 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-blue-600 mb-6 pb-4 border-b-2 border-indigo-200">
               📄 REPORTS
             </h2>
@@ -151,10 +151,10 @@ export default function Reports({ projects, updates, reports, projectFilters, br
                     {group.items.map((report) => (
                       <div
                         key={report.id}
-                        className="flex items-center justify-between p-4 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-900/10 transition-all duration-300 group border border-slate-200 dark:border-slate-700 hover:border-emerald-300 dark:hover:border-emerald-600"
+                        className="flex items-center justify-between p-4 rounded-2xl hover:bg-indigo-50 transition-all duration-300 group border border-transparent hover:border-indigo-200"
                       >
                         <div className="flex-1">
-                          <p className="text-sm font-bold text-slate-900 dark:text-slate-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                          <p className="text-sm font-black text-slate-900 mb-1 group-hover:text-indigo-600 transition-colors">
                             {report.title}
                           </p>
                           <p className="text-xs text-slate-600 font-semibold">

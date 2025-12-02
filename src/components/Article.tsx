@@ -55,13 +55,13 @@ export default function Article({ projects, articles, videos, projectFilters, br
   }
 
   return (
-    <div className="flex-1 bg-gradient-to-br from-slate-50 via-rose-50 to-orange-50 overflow-auto rounded-b-3xl">
+    <div className="flex-1 bg-white overflow-auto">
       <div className="p-8">
         <div className="mb-8">
-          <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-rose-600 to-orange-600">
-            {currentProjectName ? `📰 ${currentProjectName} - Articles` : '📰 ALL PROJECTS - ARTICLES'}
-          </h2>
-          <p className="text-slate-500 font-semibold mt-1">
+          <h1 className="text-4xl md:text-5xl font-bold text-slate-900 dark:text-white mb-2">
+            {currentProjectName ? `📰 ${currentProjectName}` : '📰 Articles & News'}
+          </h1>
+          <p className="text-slate-600 dark:text-slate-400 text-lg">
             {currentProjectName ? 'Project-specific newspaper cuttings and videos' : 'Combined articles from all projects'}
           </p>
         </div>
@@ -80,9 +80,9 @@ export default function Article({ projects, articles, videos, projectFilters, br
           onStateChange={projectFilters.setSelectedState}
         />
 
-        <div className="grid grid-cols-2 gap-8">
-          <div className="bg-white/80 backdrop-blur-sm rounded-3xl border-2 border-rose-200 p-6 shadow-2xl hover:shadow-rose-200 transition-all">
-            <h2 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-rose-600 to-orange-600 mb-6 pb-4 border-b-2 border-rose-200">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-md hover:shadow-lg hover:border-emerald-300 transition-all">
+            <h2 className="text-2xl font-bold text-slate-900 mb-6 pb-4 border-b border-slate-200">
               📰 NEWSPAPER CUTTINGS
             </h2>
 
@@ -90,10 +90,10 @@ export default function Article({ projects, articles, videos, projectFilters, br
               {groupedArticles.map((group) => (
                 <div key={group.projectId}>
                   <div className="flex items-center gap-3 mb-3">
-                    <span className="px-3 py-1 rounded-full bg-rose-100 text-rose-700 text-xs font-black">
+                    <span className="px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold">
                       {group.projectName}
                     </span>
-                    <span className="text-[11px] font-semibold text-slate-500">
+                    <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
                       {group.items.length} article{group.items.length !== 1 ? 's' : ''}
                     </span>
                   </div>
@@ -102,26 +102,25 @@ export default function Article({ projects, articles, videos, projectFilters, br
                     {group.items.map((article) => (
                       <div
                         key={article.id}
-                        className="flex items-center justify-between p-4 rounded-2xl hover:bg-rose-50 transition-all duration-300 group border border-transparent hover:border-rose-200 gap-3"
+                        className="flex items-center justify-between p-4 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-all duration-300 group border border-transparent hover:border-slate-200 dark:hover:border-slate-600 gap-3"
                       >
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-slate-900 group-hover:text-rose-600 transition-colors">
+                          <p className="text-sm font-semibold text-slate-900 dark:text-white group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">
                             {article.title} - {new Date(article.date).toLocaleDateString('en-GB')}
                           </p>
                         </div>
 
                         <div className="flex items-center gap-2 flex-shrink-0">
                           {article.is_featured && (
-                            <span className="px-4 py-1.5 bg-gradient-to-r from-red-500 to-rose-600 text-white font-black text-xs shadow-lg animate-pulse overflow-hidden" style={{ borderRadius: '9999px' }}>
-                              ⚡ TIME NOW
+                            <span className="px-4 py-1.5 bg-gradient-to-r from-orange-500 to-amber-600 text-white font-semibold text-xs shadow-lg animate-pulse overflow-hidden rounded-full">
+                              ⚡ FEATURED
                             </span>
                           )}
 
                           <button
                             onClick={() => handleDownload(article.drive_link)}
                             disabled={!article.drive_link}
-                            className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-black text-sm shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 overflow-hidden disabled:opacity-40 disabled:cursor-not-allowed"
-                            style={{ borderRadius: '9999px' }}
+                            className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white font-semibold text-sm shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 overflow-hidden disabled:opacity-40 disabled:cursor-not-allowed rounded-lg"
                           >
                             <Download className="w-4 h-4" />
                             DOWNLOADS
@@ -135,8 +134,8 @@ export default function Article({ projects, articles, videos, projectFilters, br
             </div>
           </div>
 
-          <div className="bg-white/80 backdrop-blur-sm rounded-3xl border-2 border-orange-200 p-6 shadow-2xl hover:shadow-orange-200 transition-all">
-            <h2 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-amber-600 mb-6 pb-4 border-b-2 border-orange-200">
+          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-md hover:shadow-lg hover:border-emerald-300 transition-all">
+            <h2 className="text-2xl font-bold text-slate-900 mb-6 pb-4 border-b border-slate-200">
               🎬 VIDEOS
             </h2>
 
@@ -144,10 +143,10 @@ export default function Article({ projects, articles, videos, projectFilters, br
               {groupedVideos.map((group) => (
                 <div key={group.projectId}>
                   <div className="flex items-center gap-3 mb-3">
-                    <span className="px-3 py-1 rounded-full bg-orange-100 text-orange-700 text-xs font-black">
+                    <span className="px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold">
                       {group.projectName}
                     </span>
-                    <span className="text-[11px] font-semibold text-slate-500">
+                    <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
                       {group.items.length} video{group.items.length !== 1 ? 's' : ''}
                     </span>
                   </div>
@@ -156,17 +155,17 @@ export default function Article({ projects, articles, videos, projectFilters, br
                     {group.items.map((video) => (
                       <div
                         key={video.id}
-                        className="flex items-center justify-between p-4 rounded-2xl hover:bg-orange-50 transition-all duration-300 group border border-transparent hover:border-orange-200 gap-3"
+                        className="flex items-center justify-between p-4 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-all duration-300 group border border-transparent hover:border-slate-200 dark:hover:border-slate-600 gap-3"
                       >
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-slate-900 group-hover:text-orange-600 transition-colors">
+                          <p className="text-sm font-semibold text-slate-900 dark:text-white group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
                             {video.title} - {new Date(video.date).toLocaleDateString('en-GB')}
                           </p>
                         </div>
 
                         <div className="flex items-center gap-2 flex-shrink-0">
                           {video.news_channel && (
-                            <span className="px-4 py-1.5 bg-gradient-to-r from-red-500 to-rose-600 text-white font-black text-xs shadow-lg overflow-hidden" style={{ borderRadius: '9999px' }}>
+                            <span className="px-4 py-1.5 bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-semibold text-xs shadow-lg overflow-hidden rounded-full">
                               {video.news_channel}
                             </span>
                           )}
@@ -174,8 +173,7 @@ export default function Article({ projects, articles, videos, projectFilters, br
                           <button
                             onClick={() => handleDownload(video.drive_link)}
                             disabled={!video.drive_link}
-                            className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-black text-sm shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 overflow-hidden disabled:opacity-40 disabled:cursor-not-allowed"
-                            style={{ borderRadius: '9999px' }}
+                            className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white font-semibold text-sm shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 overflow-hidden disabled:opacity-40 disabled:cursor-not-allowed rounded-lg"
                           >
                             <Download className="w-4 h-4" />
                             DOWNLOADS
@@ -191,13 +189,13 @@ export default function Article({ projects, articles, videos, projectFilters, br
         </div>
 
         {loading && (
-          <div className="mt-6 p-6 bg-white/80 border-2 border-rose-200 rounded-2xl text-center font-semibold text-slate-600">
+          <div className="mt-6 p-6 bg-white border border-slate-200 rounded-lg text-center font-semibold text-slate-600">
             Loading articles and highlight videos...
           </div>
         )}
 
         {!loading && filteredArticles.length === 0 && (
-          <div className="mt-6 p-6 bg-white/80 border-2 border-rose-200 rounded-2xl text-center font-semibold text-slate-600">
+          <div className="mt-6 p-6 bg-white border border-slate-200 rounded-lg text-center font-semibold text-slate-600">
             No articles available for the selected criteria.
           </div>
         )}

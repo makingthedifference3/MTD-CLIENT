@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Home, FolderKanban, Clock, FileText, FileBarChart, Image, Newspaper, ChevronDown, ChevronRight, LogOut } from 'lucide-react';
 import CompanyLogo from './CompanyLogo';
-// Brand colors available via partner.primary_color if needed
+import { getBrandColors } from '../lib/logodev';
 
 interface SidebarProps {
   currentView: string;
@@ -25,6 +25,9 @@ export default function Sidebar({
 }: SidebarProps) {
   const { partner, logout } = useAuth();
   const [isExpanded, setIsExpanded] = useState(false);
+
+  // Get brand colors
+  const brandColors = partner ? getBrandColors(partner.primary_color || '#059669') : null;
   
   // Get shortened company name if too long
   const getShortCompanyName = (fullName: string) => {
@@ -67,17 +70,22 @@ export default function Sidebar({
 
   return (
     <div 
-      className={`relative flex flex-col shadow-lg transition-all duration-300 ${
-        isExpanded ? 'w-72' : 'w-20'
+      className={`relative flex flex-col shadow-xl transition-all duration-300 rounded-3xl m-3 overflow-hidden ${
+        isExpanded ? 'w-80' : 'w-20'
       }`}
       style={{
-        background: 'linear-gradient(180deg, #059669, #10b981)',
+        background: `linear-gradient(180deg, ${brandColors?.lighter || '#faf5ff'}, white)`,
+        borderRight: `3px solid ${brandColors?.primary || '#a78bfa'}`
       }}
       onMouseEnter={() => setIsExpanded(true)}
       onMouseLeave={() => setIsExpanded(false)}
     >
       <div 
-        className="p-4 shadow-lg h-[88px] flex items-center rounded-t-3xl bg-gradient-to-br from-emerald-700 to-emerald-600"
+        className="p-4 shadow-md h-[88px] flex items-center rounded-t-3xl"
+        style={{
+          background: brandColors?.gradient || 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          borderBottom: `3px solid ${brandColors?.darker || '#7c3aed'}`
+        }}
       >
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-full overflow-hidden bg-white shadow-lg flex-shrink-0 ring-4 ring-white/30">
@@ -102,7 +110,7 @@ export default function Sidebar({
         </div>
       </div>
 
-      <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+      <nav className="flex-1 p-4 space-y-2 overflow-y-auto bg-white">
         {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = currentView === item.id;
@@ -119,9 +127,12 @@ export default function Sidebar({
                 }}
                 className={`w-full flex items-center ${isExpanded ? 'justify-between' : 'justify-center'} px-4 py-3 rounded-lg font-semibold text-sm transition-all duration-300 group ${
                   isActive
-                    ? 'text-white shadow-lg bg-white/25 backdrop-blur-sm'
-                    : 'text-white/80 hover:bg-white/15 hover:text-white'
+                    ? 'text-white shadow-lg'
+                    : 'text-slate-700 hover:bg-white/50'
                 }`}
+                style={isActive ? {
+                  background: brandColors?.gradient || 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+                } : {}}
                 title={!isExpanded ? item.label : ''}
               >
                 <div className={`flex items-center ${isExpanded ? 'gap-3' : ''}`}>
@@ -145,9 +156,12 @@ export default function Sidebar({
                       onClick={() => onProjectSelect(project.id)}
                       className={`w-full text-left px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-300 whitespace-nowrap overflow-hidden ${
                         selectedProject === project.id
-                          ? 'text-white shadow-lg bg-white/30 backdrop-blur-sm'
-                          : 'text-white/70 hover:bg-white/15 hover:text-white'
+                          ? 'text-white shadow-lg'
+                          : 'text-slate-600 hover:bg-white/50'
                       }`}
+                      style={selectedProject === project.id ? {
+                        background: brandColors?.gradientReverse || 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)'
+                      } : {}}
                     >
                       <div className="flex flex-col text-left">
                         <span>{project.name}</span>
@@ -168,11 +182,15 @@ export default function Sidebar({
       
       {/* Logout Button at Bottom */}
       <div 
-        className="p-4 shadow-inner rounded-b-3xl bg-emerald-700/40"
+        className="p-4 shadow-inner rounded-b-3xl"
+        style={{
+          borderTop: `2px solid ${brandColors?.primary || '#a78bfa'}`,
+          background: `linear-gradient(180deg, white, ${brandColors?.lighter || '#faf5ff'})`
+        }}
       >
         <button
           onClick={logout}
-          className={`w-full flex items-center ${isExpanded ? 'justify-start gap-3' : 'justify-center'} px-4 py-3 rounded-lg font-semibold text-sm transition-all duration-300 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white shadow-md hover:shadow-lg`}
+          className={`w-full flex items-center ${isExpanded ? 'justify-start gap-3' : 'justify-center'} px-4 py-3 rounded-lg font-semibold text-sm transition-all duration-300 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white shadow-md hover:shadow-lg`}
           title={!isExpanded ? 'Logout' : ''}
         >
           <LogOut className="w-5 h-5 transition-transform flex-shrink-0" />
@@ -183,7 +201,8 @@ export default function Sidebar({
       {/* Expand/Collapse Indicator */}
       {!isExpanded && (
         <div 
-          className="absolute top-1/2 -right-3 text-white p-1 rounded-full shadow-md bg-gradient-to-r from-emerald-500 to-teal-600"
+          className="absolute top-1/2 -right-3 text-white p-1 rounded-full shadow-md"
+          style={{ background: brandColors?.primary || '#a78bfa' }}
         >
           <ChevronRight className="w-4 h-4" />
         </div>

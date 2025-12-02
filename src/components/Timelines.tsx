@@ -113,13 +113,13 @@ export default function Timelines({ projects, activities, projectFilters, brandC
   const phaseColumnWidth = 220;
 
   return (
-    <div className="flex-1 bg-gradient-to-br from-slate-50 via-violet-50 to-purple-50 overflow-y-auto overflow-x-hidden rounded-b-3xl">
+    <div className="flex-1 bg-white overflow-y-auto overflow-x-hidden">
       <div className="p-8">
         <div className="mb-8">
-          <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-violet-600 to-purple-600">
-            {currentProjectName ? `📅 ${currentProjectName} - Timelines` : '📅 ALL PROJECTS - TIMELINES'}
-          </h2>
-          <p className="text-slate-500 font-semibold mt-1">
+          <h1 className="text-4xl md:text-5xl font-bold text-slate-900 dark:text-white mb-2">
+            {currentProjectName ? `📅 ${currentProjectName}` : '📅 Project Timelines'}
+          </h1>
+          <p className="text-slate-600 dark:text-slate-400 text-lg">
             {currentProjectName ? 'Project-specific Gantt chart' : `Combined Gantt chart from all projects (${filteredActivities.length} activities)`}
           </p>
         </div>
@@ -136,18 +136,18 @@ export default function Timelines({ projects, activities, projectFilters, brandC
 
         {/* Timeline Canvas */}
         <div
-          className="rounded-[32px] p-8 shadow-2xl"
+          className="rounded-2xl p-8 shadow-lg border border-slate-200 dark:border-slate-700"
           style={{
-            background: 'linear-gradient(135deg, #0f172a, #1e1b4b)',
-            border: '1px solid rgba(255,255,255,0.08)',
+            background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.5), rgba(30, 27, 75, 0.5))',
+            backdropFilter: 'blur(10px)'
           }}
         >
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold text-white/60 uppercase" style={{ letterSpacing: '0.3em' }}>
-                Timeline overview
+              <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-widest">
+                Timeline Overview
               </p>
-              <h3 className="text-2xl font-bold text-white">
+              <h3 className="text-2xl font-bold text-slate-900 dark:text-white">
                 {currentProjectName ? `${currentProjectName} timeline` : 'All projects timeline'}
               </h3>
               <p className="text-sm text-white/70">Visual tracker generated from the latest client data.</p>
