@@ -53,19 +53,15 @@ export default function Accounts({ projectData, projectFilters, brandColors, loa
     return { totalBudget, utilizedBudget };
   }, [parentProjectMap, subProjectCounts]);
 
-  const { totalBudget, utilizedBudget } = useMemo(() => {
-    return relevantProjects.reduce(
-      (acc, project) => {
-        const normalized = getNormalizedBudget(project);
-        acc.totalBudget += normalized.totalBudget;
-        acc.utilizedBudget += normalized.utilizedBudget;
-        return acc;
-      },
-      { totalBudget: 0, utilizedBudget: 0 }
-    );
-  }, [relevantProjects, getNormalizedBudget]);
+  const budgetSummary = useMemo(() => {
+    const total = relevantProjects.reduce((sum, project) => sum + sanitizeBudgetValue(project.total_budget), 0);
+    const utilized = relevantProjects.reduce((sum, project) => sum + sanitizeBudgetValue(project.utilized_budget), 0);
+    const remaining = total - utilized;
+    const percentage = total > 0 ? (utilized / total) * 100 : 0;
+    return { total, utilized, remaining, percentage };
+  }, [relevantProjects]);
 
-  const utilizedPercentage = totalBudget > 0 ? (utilizedBudget / totalBudget) * 100 : 0;
+  const utilizedPercentage = budgetSummary.percentage;
   const pendingPercentage = 100 - utilizedPercentage;
   const singleProjectSelected = projectFilters.selectedProjectGroup !== 'all' && projectFilters.filteredProjects.length === 1;
   const currentProjectName = singleProjectSelected ? projectFilters.filteredProjects[0].name : null;
@@ -199,7 +195,7 @@ export default function Accounts({ projectData, projectFilters, brandColors, loa
                       <span className="text-lg font-black text-slate-700">UTILIZED</span>
                     </div>
                     <p className="text-3xl font-black bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent ml-9">
-                      {formatCurrency(utilizedBudget)}
+                      {formatCurrency(budgetSummary.utilized)}
                     </p>
                   </div>
                   <div className="group hover:scale-105 transition-transform">
@@ -208,12 +204,12 @@ export default function Accounts({ projectData, projectFilters, brandColors, loa
                       <span className="text-lg font-black text-slate-700">PENDING</span>
                     </div>
                     <p className="text-3xl font-black bg-gradient-to-r from-red-600 to-rose-600 bg-clip-text text-transparent ml-9">
-                      {formatCurrency(totalBudget - utilizedBudget)}
+                      {formatCurrency(budgetSummary.total - budgetSummary.utilized)}
                     </p>
                   </div>
                   <div className="pt-4 border-t border-slate-200">
                     <p className="text-sm font-semibold text-slate-500">Total Budget</p>
-                    <p className="text-2xl font-black text-slate-800">{formatCurrency(totalBudget)}</p>
+                    <p className="text-2xl font-black text-slate-800">{formatCurrency(budgetSummary.total)}</p>
                   </div>
                 </div>
               </div>
