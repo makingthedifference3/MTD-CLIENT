@@ -548,7 +548,7 @@ CREATE TABLE public.notifications (
 );
 CREATE TABLE public.project_activities (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
-  activity_code character varying UNIQUE,
+  activity_code character varying,
   project_id uuid NOT NULL,
   csr_partner_id uuid NOT NULL,
   toll_id uuid,
@@ -657,6 +657,7 @@ CREATE TABLE public.project_expenses (
   csr_partner_id uuid,
   toll_id uuid,
   budget_category_id uuid,
+  sub_sub-category uuid,
   CONSTRAINT project_expenses_pkey PRIMARY KEY (id),
   CONSTRAINT project_expenses_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id),
   CONSTRAINT project_expenses_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.expense_categories(id),
@@ -1033,7 +1034,7 @@ CREATE TABLE public.users (
   city character varying,
   state character varying,
   pincode character varying,
-  role character varying NOT NULL CHECK (role::text = ANY (ARRAY['admin'::character varying, 'accountant'::character varying, 'project_manager'::character varying, 'team_member'::character varying, 'client'::character varying]::text[])),
+  role character varying NOT NULL CHECK (role::text = ANY (ARRAY['admin'::character varying::text, 'accountant'::character varying::text, 'project_manager'::character varying::text, 'team_member'::character varying::text, 'client'::character varying::text, 'data_manager'::character varying::text])),
   department character varying,
   team character varying,
   designation character varying,

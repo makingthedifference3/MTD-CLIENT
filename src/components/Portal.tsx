@@ -345,6 +345,10 @@ export default function Portal() {
             loading={dataLoading}
             onUpdateProject={handleUpdateProject}
             tolls={tolls}
+            photos={collections.mediaPhotos}
+            videos={collections.mediaVideos}
+            activities={collections.activities}
+            onNavigate={handleViewChange}
           />
         )}            {currentView === 'timelines' && (
               <Timelines
