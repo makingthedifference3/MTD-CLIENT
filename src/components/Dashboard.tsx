@@ -129,6 +129,20 @@ export default function Dashboard({
 
   const visibleProjectIds = useMemo(() => filteredProjects.map(p => p.id), [filteredProjects]);
 
+  const overviewStats = useMemo(() => {
+    const active = filteredProjects.filter(p => p.status === 'active' || p.status === 'in_progress').length;
+    const completed = filteredProjects.filter(p => p.status === 'completed').length;
+    const stateCount = new Set(filteredProjects.map((p) => p.state).filter(Boolean)).size;
+    const locationCount = new Set(filteredProjects.map((p) => p.location).filter(Boolean)).size;
+    return {
+      total: filteredProjects.length,
+      active,
+      completed,
+      states: stateCount,
+      locations: locationCount,
+    };
+  }, [filteredProjects]);
+
   useEffect(() => {
     if (!partner) return;
     const partnerProjects = filteredProjects.filter((project) => project.csr_partner_id === partner.id);
@@ -410,7 +424,7 @@ export default function Dashboard({
                         </div>
                         <div>
                           <h2 className="text-xl font-bold text-white">Projects Overview</h2>
-                          <p className="text-sm text-slate-400">{filteredProjects.length} total projects</p>
+                          <p className="text-sm text-slate-400">{overviewStats.total} total projects</p>
                         </div>
                       </div>
                     </div>
@@ -418,22 +432,22 @@ export default function Dashboard({
                     <div className="grid grid-cols-2 gap-4">
                       <div className="p-5 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/10 border border-emerald-500/30 text-center group/stat hover:scale-105 transition-transform">
                         <p className="text-4xl font-black text-emerald-400 mb-1">
-                          {filteredProjects.filter(p => p.status === 'active' || p.status === 'in_progress').length}
+                          {overviewStats.active}
                         </p>
                         <p className="text-sm font-medium text-slate-400">Active Projects</p>
                       </div>
                       <div className="p-5 rounded-2xl bg-gradient-to-br from-blue-500/20 to-indigo-500/10 border border-blue-500/30 text-center group/stat hover:scale-105 transition-transform">
                         <p className="text-4xl font-black text-blue-400 mb-1">
-                          {filteredProjects.filter(p => p.status === 'completed').length}
+                          {overviewStats.completed}
                         </p>
                         <p className="text-sm font-medium text-slate-400">Completed</p>
                       </div>
                       <div className="p-5 rounded-2xl bg-gradient-to-br from-purple-500/20 to-violet-500/10 border border-purple-500/30 text-center group/stat hover:scale-105 transition-transform">
-                        <p className="text-4xl font-black text-purple-400 mb-1">{states.length}</p>
+                        <p className="text-4xl font-black text-purple-400 mb-1">{overviewStats.states || '-'}</p>
                         <p className="text-sm font-medium text-slate-400">States Covered</p>
                       </div>
                       <div className="p-5 rounded-2xl bg-gradient-to-br from-amber-500/20 to-orange-500/10 border border-amber-500/30 text-center group/stat hover:scale-105 transition-transform">
-                        <p className="text-4xl font-black text-amber-400 mb-1">{tolls.length || '-'}</p>
+                        <p className="text-4xl font-black text-amber-400 mb-1">{overviewStats.locations || '-'}</p>
                         <p className="text-sm font-medium text-slate-400">Locations</p>
                       </div>
                     </div>
@@ -488,13 +502,12 @@ export default function Dashboard({
                             }`}
                           >
                             {item.drive_link ? (
-                              <img 
-                                src={item.drive_link} 
-                                alt={item.title}
-                                className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  (e.target as HTMLImageElement).style.display = 'none';
-                                }}
+                              <iframe
+                                src={item.drive_link}
+                                title={item.title}
+                                loading="lazy"
+                                allowFullScreen
+                                className="w-full h-full border-0 object-cover"
                               />
                             ) : (
                               <div className={`w-full h-full flex items-center justify-center ${
