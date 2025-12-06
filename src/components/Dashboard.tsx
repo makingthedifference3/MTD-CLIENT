@@ -18,6 +18,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
 import ProjectFilterBar from '@/components/ProjectFilterBar';
+import StateLocationSelector from '@/components/StateLocationSelector';
 
 interface DashboardProps {
   selectedProject: string | null;
@@ -71,6 +72,8 @@ export default function Dashboard({
     projects_active: { current: 0, target: 0 },
   });
   const [selectedProjectGroup, setSelectedProjectGroup] = useState('all');
+  const [modalFilters, setModalFilters] = useState<{ status?: 'active' | 'completed'; state?: string; location?: string }>({});
+  const [modalMode, setModalMode] = useState<'projects' | 'state-selector' | 'location-selector'>('projects');
   const canEditMetrics = Boolean(onUpdateProject && user?.role !== 'client');
 
   const states = useMemo(() => {
@@ -86,6 +89,11 @@ export default function Dashboard({
     [projects]
   );
 
+  const subcompanyLabelMap = useMemo(
+    () => new Map(subcompanyOptions.map((option) => [option.value, option.label])),
+    [subcompanyOptions]
+  );
+
   const projectsById = useMemo(
     () => new Map(projects.map((project) => [project.id, project])),
     [projects]
@@ -94,6 +102,15 @@ export default function Dashboard({
   useEffect(() => {
     setSelectedProjectGroup(selectedProject ?? 'all');
   }, [selectedProject]);
+
+  const modalProjects = useMemo(() => {
+    return projects.filter((project) => {
+      if (modalFilters.status && project.status !== modalFilters.status) return false;
+      if (modalFilters.state && project.state !== modalFilters.state) return false;
+      if (modalFilters.location && project.location !== modalFilters.location) return false;
+      return true;
+    });
+  }, [projects, modalFilters]);
 
   const filteredProjects = useMemo(() => {
     let result = projects;
@@ -207,6 +224,12 @@ export default function Dashboard({
     return label.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
   };
 
+  const openModalWithFilters = (filters: { status?: 'active' | 'completed'; state?: string; location?: string }, mode: 'projects' | 'state-selector' | 'location-selector' = 'projects') => {
+    setModalFilters(filters);
+    setModalMode(mode);
+    setShowProjectOverview(true);
+  };
+
   const sanitizeBudgetValue = (value?: number) => (typeof value === 'number' && Number.isFinite(value) ? value : 0);
 
   const handleEditClick = (key: string, current: number, target: number) => {
@@ -296,18 +319,49 @@ export default function Dashboard({
           onSubcompanyChange={onSubcompanyChange}
         />
 
-        <Dialog open={showProjectOverview} onOpenChange={setShowProjectOverview}>
+        <Dialog open={showProjectOverview} onOpenChange={(open) => {
+          setShowProjectOverview(open);
+          if (!open) {
+            setModalFilters({});
+            setModalMode('projects');
+          }
+        }}>
           <DialogContent className="max-w-4xl max-h-[80vh]">
             <DialogHeader>
-              <DialogTitle>Project Overview</DialogTitle>
+              <DialogTitle>
+                {modalMode === 'state-selector' ? 'Select State' : 
+                 modalMode === 'location-selector' ? 'Select Location' : 
+                 'Project Overview'}
+              </DialogTitle>
               <DialogDescription>
-                Overview of {projects.length} visible project{projects.length === 1 ? '' : 's'}.
+                {modalMode === 'state-selector' ? 'Choose a state to view its projects' :
+                 modalMode === 'location-selector' ? 'Choose a location to view its projects' :
+                 `Overview of ${modalProjects.length} project${modalProjects.length === 1 ? '' : 's'} matching the selected filters.`}
               </DialogDescription>
             </DialogHeader>
 
-            <ScrollArea className="max-h-[60vh] pr-4">
-              <div className="space-y-4">
-                {projects.map((project) => {
+            {modalMode === 'state-selector' ? (
+              <StateLocationSelector
+                projects={projects}
+                type="state"
+                onSelect={(state) => {
+                  setModalFilters({ state });
+                  setModalMode('projects');
+                }}
+              />
+            ) : modalMode === 'location-selector' ? (
+              <StateLocationSelector
+                projects={projects}
+                type="location"
+                onSelect={(location) => {
+                  setModalFilters({ location });
+                  setModalMode('projects');
+                }}
+              />
+            ) : (
+              <ScrollArea className="max-h-[60vh] pr-4">
+                <div className="space-y-4">
+                  {modalProjects.map((project) => {
                   const totalBudget = sanitizeBudgetValue(project.total_budget);
                   const utilizedBudget = sanitizeBudgetValue(project.utilized_budget);
                   const remainingBudget = Math.max(totalBudget - utilizedBudget, 0);
@@ -316,7 +370,25 @@ export default function Dashboard({
                     ? new Date(project.start_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
                     : 'TBD';
                   return (
-                    <div key={project.id} className="bg-card rounded-2xl border border-border p-4 shadow-sm">
+                    <div
+                      key={project.id}
+                      className="bg-card rounded-2xl border border-border p-4 shadow-sm cursor-pointer"
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => {
+                        setSelectedProjectGroup(project.id);
+                        setShowProjectOverview(false);
+                        setModalFilters({});
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          setSelectedProjectGroup(project.id);
+                          setShowProjectOverview(false);
+                          setModalFilters({});
+                        }
+                      }}
+                    >
                       <div className="flex items-center justify-between gap-4">
                         <div>
                           <p className="text-lg font-bold text-foreground">{project.name || 'Unnamed Project'}</p>
@@ -325,6 +397,11 @@ export default function Dashboard({
                             <span>{locationLabel}</span>
                           </p>
                         </div>
+                        {project.toll_id && (
+                          <Badge variant="outline" className="bg-muted/60 border-dashed text-[11px]">
+                            {subcompanyLabelMap.get(project.toll_id) || 'Subcompany'}
+                          </Badge>
+                        )}
                         <Badge
                           variant={project.status === 'active' ? 'default' : 'secondary'}
                           className="uppercase tracking-wide text-[10px]"
@@ -375,6 +452,7 @@ export default function Dashboard({
                 })}
               </div>
             </ScrollArea>
+            )}
 
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowProjectOverview(false)}>
@@ -451,48 +529,92 @@ export default function Dashboard({
               </Card>
 
               {/* Projects Overview */}
-              <Card
-                className="cursor-pointer"
-                role="button"
-                tabIndex={0}
-                aria-label="Open project overview modal"
-                onClick={() => setShowProjectOverview(true)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    setShowProjectOverview(true);
-                  }
-                }}
-              >
+              <Card>
                 <CardHeader className="pb-2">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-violet-100 dark:bg-violet-950/30 flex items-center justify-center">
-                      <Target className="w-6 h-6 text-violet-600" />
+                      <div className="w-12 h-12 rounded-xl bg-violet-100 dark:bg-violet-950/30 flex items-center justify-center">
+                        <Target className="w-6 h-6 text-violet-600" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-lg">Projects Overview</CardTitle>
+                        <CardDescription>{overviewStats.total} total projects</CardDescription>
+                      </div>
                     </div>
-                    <div>
-                      <CardTitle className="text-lg">Projects Overview</CardTitle>
-                      <CardDescription>{overviewStats.total} total projects</CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
+                  </CardHeader>
+                  <CardContent>
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 text-center">
-                      <p className="text-3xl font-bold text-emerald-600">{overviewStats.active}</p>
-                      <p className="text-sm text-muted-foreground">Active Projects</p>
-                    </div>
-                    <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-950/30 text-center">
-                      <p className="text-3xl font-bold text-blue-600">{overviewStats.completed}</p>
-                      <p className="text-sm text-muted-foreground">Completed</p>
-                    </div>
-                    <div className="p-4 rounded-xl bg-purple-50 dark:bg-purple-950/30 text-center">
-                      <p className="text-3xl font-bold text-purple-600">{overviewStats.states || '-'}</p>
-                      <p className="text-sm text-muted-foreground">States Covered</p>
-                    </div>
-                    <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/30 text-center">
-                      <p className="text-3xl font-bold text-amber-600">{overviewStats.locations || '-'}</p>
-                      <p className="text-sm text-muted-foreground">Locations</p>
-                    </div>
+                      <div
+                        className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 text-center cursor-pointer hover:bg-emerald-100 dark:hover:bg-emerald-950/50 transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openModalWithFilters({ status: 'active' });
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            openModalWithFilters({ status: 'active' });
+                          }
+                        }}
+                      >
+                        <p className="text-3xl font-bold text-emerald-600">{overviewStats.active}</p>
+                        <p className="text-sm text-muted-foreground">Active Projects</p>
+                      </div>
+                      <div
+                        className="p-4 rounded-xl bg-blue-50 dark:bg-blue-950/30 text-center cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-950/50 transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openModalWithFilters({ status: 'completed' });
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            openModalWithFilters({ status: 'completed' });
+                          }
+                        }}
+                      >
+                        <p className="text-3xl font-bold text-blue-600">{overviewStats.completed}</p>
+                        <p className="text-sm text-muted-foreground">Completed</p>
+                      </div>
+                      <div
+                        className="p-4 rounded-xl bg-purple-50 dark:bg-purple-950/30 text-center cursor-pointer hover:bg-purple-100 dark:hover:bg-purple-950/50 transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openModalWithFilters({}, 'state-selector');
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            openModalWithFilters({}, 'state-selector');
+                          }
+                        }}
+                      >
+                        <p className="text-3xl font-bold text-purple-600">{overviewStats.states || '-'}</p>
+                        <p className="text-sm text-muted-foreground">States Covered</p>
+                      </div>
+                      <div
+                        className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/30 text-center cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-950/50 transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openModalWithFilters({}, 'location-selector');
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            openModalWithFilters({}, 'location-selector');
+                          }
+                        }}
+                      >
+                        <p className="text-3xl font-bold text-amber-600">{overviewStats.locations || '-'}</p>
+                        <p className="text-sm text-muted-foreground">Locations</p>
+                      </div>
                   </div>
                 </CardContent>
               </Card>
