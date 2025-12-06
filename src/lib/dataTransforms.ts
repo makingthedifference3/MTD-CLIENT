@@ -313,7 +313,7 @@ export const splitMediaArticles = (rows: MediaArticleRow[]): {
         id: row.id,
         project_id: row.project_id,
         title,
-        type: 'photo',
+      impact_metrics: row.impact_metrics ?? undefined,
         date: baseDate,
         is_geo_tagged: Boolean(row.is_geo_tagged),
         drive_link: driveLink,

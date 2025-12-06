@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Badge } from './ui/badge';
 import type { ProjectActivity } from '../types/csr';
 import type { SelectOption, UseProjectFiltersResult } from '../lib/projectFilters';
+import { formatProjectLabel } from '../lib/projectFilters';
 import ProjectFilterBar from './ProjectFilterBar';
 
 interface TimelinesProps {
@@ -68,12 +69,12 @@ export default function Timelines({
   const activityTimestamp = (activity: ProjectActivity) => getActivityStartValue(activity) ?? Number.POSITIVE_INFINITY;
 
   const groupedActivities = useMemo(() => {
-    const groups = new Map<string, { projectName: string; activities: ProjectActivity[] }>();
+    const groups = new Map<string, { projectId: string; projectLabel: string; activities: ProjectActivity[] }>();
     filteredActivities.forEach((activity) => {
       const project = projects.find((p) => p.id === activity.project_id);
-      const projectName = project?.name || 'Unnamed Project';
+      const projectLabel = project ? formatProjectLabel(project) : 'Unnamed Project';
       if (!groups.has(activity.project_id)) {
-        groups.set(activity.project_id, { projectName, activities: [] });
+        groups.set(activity.project_id, { projectId: activity.project_id, projectLabel, activities: [] });
       }
       groups.get(activity.project_id)!.activities.push(activity);
     });
@@ -200,13 +201,16 @@ export default function Timelines({
                     : 0;
 
                   return (
-                    <div key={group.projectName} className="border-b border-border">
-                      <div className="flex bg-muted/60 text-muted-foreground text-sm font-semibold">
-                        <div style={{ width: `${phaseColumnWidth}px` }} className="px-4 py-3">
-                          {group.projectName}
+                    <div key={group.projectId} className="border-b border-border">
+                      <div className="flex bg-muted/60">
+                        <div style={{ width: `${phaseColumnWidth}px` }} className="px-4 py-3 space-y-1">
+                          <p className="text-base font-semibold text-card-foreground truncate">{group.projectLabel}</p>
+                          {/* <p className="text-xs text-muted-foreground">
+                            {group.activities.length} phase{group.activities.length !== 1 ? 's' : ''}
+                          </p> */}
                         </div>
-                        <div className="flex-1 px-4 py-3 text-muted-foreground">
-                          {group.activities.length} phase{group.activities.length !== 1 ? 's' : ''} • Avg completion {avgCompletion}%
+                        <div className="flex-1 px-4 py-3 text-xs text-muted-foreground">
+                          Avg completion {avgCompletion}%
                         </div>
                       </div>
 

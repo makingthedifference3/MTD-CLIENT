@@ -59,6 +59,7 @@ export default function Dashboard({
   const { addToast } = useToast();
   const [selectedState, setSelectedState] = useState('all');
   const [showImpactModal, setShowImpactModal] = useState(false);
+  const [showProjectOverview, setShowProjectOverview] = useState(false);
   const [editingMetric, setEditingMetric] = useState<string | null>(null);
   const [editValues, setEditValues] = useState({ current: 0, target: 0 });
   const [isSaving, setIsSaving] = useState(false);
@@ -82,6 +83,11 @@ export default function Dashboard({
       projects
         .map((project) => ({ value: project.id, label: formatProjectLabel(project) }))
         .sort((a, b) => a.label.localeCompare(b.label)),
+    [projects]
+  );
+
+  const projectsById = useMemo(
+    () => new Map(projects.map((project) => [project.id, project])),
     [projects]
   );
 
@@ -196,6 +202,13 @@ export default function Dashboard({
     return `₹${amount.toLocaleString('en-IN')}`;
   };
 
+  const formatMetricLabel = (label?: string) => {
+    if (!label) return 'Metric';
+    return label.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+  };
+
+  const sanitizeBudgetValue = (value?: number) => (typeof value === 'number' && Number.isFinite(value) ? value : 0);
+
   const handleEditClick = (key: string, current: number, target: number) => {
     if (!canEditMetrics) return;
     if (!selectedProject) {
@@ -267,7 +280,7 @@ export default function Dashboard({
 
   return (
     <div className="flex-1 bg-background overflow-auto">
-      <div className="p-6 max-w-[1800px] mx-auto space-y-6">
+        <div className="p-6 max-w-[1800px] mx-auto space-y-6">
         
         {/* Filters */}
         <ProjectFilterBar
@@ -282,6 +295,94 @@ export default function Dashboard({
           selectedSubcompany={selectedSubcompany}
           onSubcompanyChange={onSubcompanyChange}
         />
+
+        <Dialog open={showProjectOverview} onOpenChange={setShowProjectOverview}>
+          <DialogContent className="max-w-4xl max-h-[80vh]">
+            <DialogHeader>
+              <DialogTitle>Project Overview</DialogTitle>
+              <DialogDescription>
+                Overview of {projects.length} visible project{projects.length === 1 ? '' : 's'}.
+              </DialogDescription>
+            </DialogHeader>
+
+            <ScrollArea className="max-h-[60vh] pr-4">
+              <div className="space-y-4">
+                {projects.map((project) => {
+                  const totalBudget = sanitizeBudgetValue(project.total_budget);
+                  const utilizedBudget = sanitizeBudgetValue(project.utilized_budget);
+                  const remainingBudget = Math.max(totalBudget - utilizedBudget, 0);
+                  const locationLabel = project.location || project.state || 'Location unknown';
+                  const startDateLabel = project.start_date
+                    ? new Date(project.start_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                    : 'TBD';
+                  return (
+                    <div key={project.id} className="bg-card rounded-2xl border border-border p-4 shadow-sm">
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <p className="text-lg font-bold text-foreground">{project.name || 'Unnamed Project'}</p>
+                          <p className="text-xs text-muted-foreground flex items-center gap-1">
+                            <span>📍</span>
+                            <span>{locationLabel}</span>
+                          </p>
+                        </div>
+                        <Badge
+                          variant={project.status === 'active' ? 'default' : 'secondary'}
+                          className="uppercase tracking-wide text-[10px]"
+                        >
+                          {project.status?.toUpperCase() || 'STATUS UNKNOWN'}
+                        </Badge>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm text-muted-foreground mt-4">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wider">Total Budget</p>
+                          <p className="font-semibold text-foreground">{formatCurrency(totalBudget)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wider">Utilized</p>
+                          <p className="font-semibold text-foreground">{formatCurrency(utilizedBudget)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wider">Remaining</p>
+                          <p className="font-semibold text-foreground">{formatCurrency(remainingBudget)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wider">Start Date</p>
+                          <p className="font-semibold text-foreground">{startDateLabel}</p>
+                        </div>
+                      </div>
+                      {project.impact_metrics && project.impact_metrics.length > 0 && (
+                        <div className="mt-4">
+                          <p className="text-sm font-semibold text-foreground mb-2">Impact Metrics</p>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                            {project.impact_metrics.map((metric) => (
+                              <div
+                                key={`${project.id}-${metric.key}-${metric.customLabel ?? metric.value}`}
+                                className="p-3 rounded-xl border border-border bg-muted/60"
+                              >
+                                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                                  {formatMetricLabel(metric.customLabel ?? metric.key)}
+                                </p>
+                                <p className="text-lg font-bold text-foreground">
+                                  {metric.value.toLocaleString('en-IN')}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </ScrollArea>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowProjectOverview(false)}>
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {isEmpty ? (
           <Card className="p-12 text-center">
@@ -350,7 +451,19 @@ export default function Dashboard({
               </Card>
 
               {/* Projects Overview */}
-              <Card>
+              <Card
+                className="cursor-pointer"
+                role="button"
+                tabIndex={0}
+                aria-label="Open project overview modal"
+                onClick={() => setShowProjectOverview(true)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    setShowProjectOverview(true);
+                  }
+                }}
+              >
                 <CardHeader className="pb-2">
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 rounded-xl bg-violet-100 dark:bg-violet-950/30 flex items-center justify-center">
@@ -459,33 +572,42 @@ export default function Dashboard({
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {filteredActivities.map((activity) => (
-                      <div key={activity.id} className="p-3 rounded-xl bg-muted/50 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <p className="font-medium text-sm text-foreground truncate">{activity.title}</p>
-                          <Badge 
-                            variant={activity.completion_percentage >= 100 ? 'default' : 'secondary'} 
-                            className={`text-xs ${
-                              activity.completion_percentage >= 100 
-                                ? 'bg-emerald-500 text-white' 
-                                : 'bg-purple-500 text-white'
-                            }`}
-                          >
-                            {activity.completion_percentage}%
-                          </Badge>
+                    {filteredActivities.map((activity) => {
+                      const activityProject = projectsById.get(activity.project_id);
+                      const activityProjectLabel = activityProject
+                        ? formatProjectLabel(activityProject)
+                        : 'Project info unavailable';
+                      return (
+                        <div key={activity.id} className="p-3 rounded-xl bg-muted/50 space-y-2">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1">
+                              <p className="font-medium text-sm text-foreground truncate">{activity.title}</p>
+                              <p className="text-xs text-muted-foreground">{activityProjectLabel}</p>
+                            </div>
+                            <Badge 
+                              variant={activity.completion_percentage >= 100 ? 'default' : 'secondary'} 
+                              className={`text-xs ${
+                                activity.completion_percentage >= 100 
+                                  ? 'bg-emerald-500 text-white' 
+                                  : 'bg-purple-500 text-white'
+                              }`}
+                            >
+                              {activity.completion_percentage}%
+                            </Badge>
+                          </div>
+                          {/* <p className="text-xs text-muted-foreground">{activity.section || 'Construction'}</p> */}
+                          <Progress
+                            value={activity.completion_percentage}
+                            className="h-1.5"
+                            indicatorClassName={
+                              activity.completion_percentage >= 100
+                                ? 'bg-gradient-to-r from-emerald-500 to-emerald-600'
+                                : 'bg-gradient-to-r from-purple-500 to-fuchsia-500'
+                            }
+                          />
                         </div>
-                        <p className="text-xs text-muted-foreground">{activity.section || 'Construction'}</p>
-                        <Progress
-                          value={activity.completion_percentage}
-                          className="h-1.5"
-                          indicatorClassName={
-                            activity.completion_percentage >= 100
-                              ? 'bg-gradient-to-r from-emerald-500 to-emerald-600'
-                              : 'bg-gradient-to-r from-purple-500 to-fuchsia-500'
-                          }
-                        />
-                      </div>
-                    ))}
+                      );
+                    })}
                     {filteredActivities.length === 0 && (
                       <p className="text-center text-muted-foreground text-sm py-8">No activities found</p>
                     )}
