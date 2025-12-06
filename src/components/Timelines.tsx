@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
+import { Badge } from './ui/badge';
 import type { ProjectActivity } from '../types/csr';
-import type { UseProjectFiltersResult } from '../lib/projectFilters';
+import type { SelectOption, UseProjectFiltersResult } from '../lib/projectFilters';
 import ProjectFilterBar from './ProjectFilterBar';
 
 interface TimelinesProps {
@@ -9,6 +10,9 @@ interface TimelinesProps {
   projectFilters: UseProjectFiltersResult;
   brandColors?: { primary: string; gradient: string } | null;
   loading?: boolean;
+  subcompanyOptions?: SelectOption[];
+  selectedSubcompany?: string;
+  onSubcompanyChange?: (value: string) => void;
 }
 
 const MIN_BAR_PERCENT = 8;
@@ -21,10 +25,21 @@ const toTimestamp = (value?: string | null): number | null => {
 
 const clampPercent = (value: number, min = 0, max = 100) => Math.min(Math.max(value, min), max);
 
-export default function Timelines({ projects, activities, projectFilters, brandColors, loading }: TimelinesProps) {
+export default function Timelines({
+  projects,
+  activities,
+  projectFilters,
+  brandColors,
+  loading,
+  subcompanyOptions,
+  selectedSubcompany,
+  onSubcompanyChange,
+}: TimelinesProps) {
   const filteredActivities = activities.filter((a) => projectFilters.visibleProjectIds.includes(a.project_id));
   const singleProjectSelected = projectFilters.selectedProjectGroup !== 'all' && projectFilters.filteredProjects.length === 1;
   const currentProjectName = singleProjectSelected ? projectFilters.filteredProjects[0].name : null;
+  const projectCount = projectFilters.filteredProjects.length || projects.length;
+  const activityCount = filteredActivities.length;
 
   const getActivityStartValue = (activity: ProjectActivity) =>
     toTimestamp(activity.start_date ?? activity.actual_start_date ?? activity.actual_end_date ?? activity.end_date);
@@ -113,15 +128,20 @@ export default function Timelines({ projects, activities, projectFilters, brandC
   const phaseColumnWidth = 220;
 
   return (
-    <div className="flex-1 bg-white overflow-y-auto overflow-x-hidden">
+    <div className="flex-1 bg-background overflow-y-auto overflow-x-hidden">
       <div className="p-8">
         <div className="mb-8">
-          <h1 className="text-4xl md:text-5xl font-bold text-slate-900 dark:text-white mb-2">
+          <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-2">
             {currentProjectName ? `📅 ${currentProjectName}` : '📅 Project Timelines'}
           </h1>
-          <p className="text-slate-600 dark:text-slate-400 text-lg">
-            {currentProjectName ? 'Project-specific Gantt chart' : `Combined Gantt chart from all projects (${filteredActivities.length} activities)`}
+          <p className="text-muted-foreground text-lg">
+            {currentProjectName ? 'Project-specific Gantt chart' : `Combined Gantt chart from all projects (${activityCount} activities)`}
           </p>
+
+          <div className="flex flex-wrap gap-2 mt-3 text-xs">
+            <Badge variant="outline" className="border-dashed bg-muted/60">{projectCount} projects</Badge>
+            <Badge variant="outline" className="border-dashed bg-muted/60">{activityCount} activities</Badge>
+          </div>
         </div>
 
         <ProjectFilterBar
@@ -132,51 +152,42 @@ export default function Timelines({ projects, activities, projectFilters, brandC
           states={projectFilters.states}
           selectedState={projectFilters.selectedState}
           onStateChange={projectFilters.setSelectedState}
+          subcompanyOptions={subcompanyOptions}
+          selectedSubcompany={selectedSubcompany}
+          onSubcompanyChange={onSubcompanyChange}
         />
 
         {/* Timeline Canvas */}
-        <div
-          className="rounded-2xl p-8 shadow-lg border border-slate-200 dark:border-slate-700"
-          style={{
-            background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.5), rgba(30, 27, 75, 0.5))',
-            backdropFilter: 'blur(10px)'
-          }}
-        >
+        <div className="rounded-2xl p-8 shadow-lg border border-border bg-card/90 backdrop-blur">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-widest">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
                 Timeline Overview
               </p>
-              <h3 className="text-2xl font-bold text-slate-900 dark:text-white">
+              <h3 className="text-2xl font-bold text-foreground">
                 {currentProjectName ? `${currentProjectName} timeline` : 'All projects timeline'}
               </h3>
-              <p className="text-sm text-white/70">Visual tracker generated from the latest client data.</p>
+              <p className="text-sm text-muted-foreground">Visual tracker generated from the latest client data.</p>
             </div>
-            <div className="flex items-center gap-6 text-sm font-semibold text-white/80">
-              <span className="inline-flex items-center gap-2">
-                <span className="w-3.5 h-3.5 rounded-full bg-emerald-400"></span>
-                Completed
-              </span>
-              <span className="inline-flex items-center gap-2">
-                <span className="w-3.5 h-3.5 rounded-full bg-purple-400"></span>
-                In Progress
-              </span>
+            <div className="flex items-center gap-3 text-sm font-semibold text-muted-foreground">
+              <Badge className="gap-2 bg-emerald-500 text-white shadow"> <span className="w-2.5 h-2.5 rounded-full bg-white/80"></span> Completed</Badge>
+              <Badge className="gap-2 bg-purple-500 text-white shadow"> <span className="w-2.5 h-2.5 rounded-full bg-white/80"></span> In Progress</Badge>
             </div>
           </div>
 
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-16 text-white/70">
-              <div className="h-10 w-10 animate-spin rounded-full border-4 border-white/30 border-t-white"></div>
+            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+              <div className="h-10 w-10 animate-spin rounded-full border-4 border-border border-t-primary"></div>
               <p className="mt-4 text-sm font-semibold">Loading timeline data…</p>
             </div>
           ) : filteredActivities.length ? (
             <div className="mt-8 overflow-x-auto">
               <div style={{ minWidth: `${phaseColumnWidth + minTimelineWidth}px` }}>
-                <div className="flex border-b border-white/15 text-white/60 text-xs uppercase font-semibold">
+                <div className="flex border-b border-border text-muted-foreground text-xs uppercase font-semibold">
                   <div style={{ width: `${phaseColumnWidth}px` }} className="px-4 py-3">Phase name</div>
                   <div className="flex flex-1">
                     {months.map((month) => (
-                      <div key={month} className="flex-1 border-l border-white/10 py-3 text-center">
+                      <div key={month} className="flex-1 border-l border-border py-3 text-center">
                         {month}
                       </div>
                     ))}
@@ -189,12 +200,12 @@ export default function Timelines({ projects, activities, projectFilters, brandC
                     : 0;
 
                   return (
-                    <div key={group.projectName} className="border-b border-white/10">
-                      <div className="flex bg-white/5 text-white/80 text-sm font-semibold">
+                    <div key={group.projectName} className="border-b border-border">
+                      <div className="flex bg-muted/60 text-muted-foreground text-sm font-semibold">
                         <div style={{ width: `${phaseColumnWidth}px` }} className="px-4 py-3">
                           {group.projectName}
                         </div>
-                        <div className="flex-1 px-4 py-3 text-white/60">
+                        <div className="flex-1 px-4 py-3 text-muted-foreground">
                           {group.activities.length} phase{group.activities.length !== 1 ? 's' : ''} • Avg completion {avgCompletion}%
                         </div>
                       </div>
@@ -206,10 +217,10 @@ export default function Timelines({ projects, activities, projectFilters, brandC
                           : 'linear-gradient(90deg, #a855f7, #7c3aed)';
 
                         return (
-                          <div key={activity.id} className="flex text-white/80 text-sm">
+                          <div key={activity.id} className="flex text-muted-foreground text-sm">
                             <div style={{ width: `${phaseColumnWidth}px` }} className="px-4 py-4">
-                              <p className="font-semibold text-white">{activity.title}</p>
-                              <p className="text-xs text-white/60">{activity.completion_percentage}% complete</p>
+                              <p className="font-semibold text-card-foreground">{activity.title}</p>
+                              <p className="text-xs text-muted-foreground">{activity.completion_percentage}% complete</p>
                             </div>
                             <div className="relative flex-1 h-14 px-4">
                               {Array.from({ length: monthGridLineCount }).map((_, index) => {
@@ -217,7 +228,7 @@ export default function Timelines({ projects, activities, projectFilters, brandC
                                 return (
                                   <span
                                     key={`${activity.id}-grid-${index}`}
-                                    className="absolute top-3 bottom-3 border-l border-white/10"
+                                    className="absolute top-3 bottom-3 border-l border-border"
                                     style={{ left: `${leftPercent}%` }}
                                   ></span>
                                 );
@@ -245,7 +256,7 @@ export default function Timelines({ projects, activities, projectFilters, brandC
               </div>
             </div>
           ) : (
-            <div className="mt-8 rounded-3xl border border-white/15 bg-white/5 px-6 py-12 text-center text-white/70 text-sm font-semibold">
+            <div className="mt-8 rounded-3xl border border-border bg-muted/50 px-6 py-12 text-center text-muted-foreground text-sm font-semibold">
               No timelines available for the selected criteria.
             </div>
           )}

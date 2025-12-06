@@ -3,6 +3,12 @@ import type { Project } from '../types/csr';
 
 export type SelectOption = { value: string; label: string };
 
+export const formatProjectLabel = (project: Project): string => {
+  const name = project.name?.trim() || 'Unnamed Project';
+  const location = project.location ? ` • ${project.location}` : '';
+  return `${name}${location}`;
+};
+
 export interface UseProjectFiltersOptions {
   projects: Project[];
   selectedProjectId: string | null;
@@ -21,46 +27,31 @@ export interface UseProjectFiltersResult {
 
 export function useProjectFilters({ projects, selectedProjectId }: UseProjectFiltersOptions): UseProjectFiltersResult {
   const [selectedProjectGroup, setSelectedProjectGroup] = useState('all');
-  const [selectedState, setSelectedState] = useState('ALL STATES');
-
-  const projectGroups = useMemo(() => {
-    const map = new Map<string, Project[]>();
-    projects.forEach((project) => {
-      const name = project.name || 'Unnamed Project';
-      if (!map.has(name)) {
-        map.set(name, []);
-      }
-      map.get(name)!.push(project);
-    });
-    return map;
-  }, [projects]);
+  const [selectedState, setSelectedState] = useState('all');
 
   useEffect(() => {
     if (!selectedProjectId) {
       setSelectedProjectGroup('all');
       return;
     }
-    const project = projects.find((item) => item.id === selectedProjectId);
-    if (project) {
-      setSelectedProjectGroup(project.name || 'Unnamed Project');
-    }
-  }, [projects, selectedProjectId]);
+    setSelectedProjectGroup(selectedProjectId);
+  }, [selectedProjectId]);
 
   const projectGroupOptions = useMemo<SelectOption[]>(
     () =>
-      Array.from(projectGroups.keys())
-        .sort()
-        .map((name) => ({ value: name, label: name })),
-    [projectGroups]
+      projects
+        .map((project) => ({ value: project.id, label: formatProjectLabel(project) }))
+        .sort((a, b) => a.label.localeCompare(b.label)),
+    [projects]
   );
 
   const selectedGroupProjects =
     selectedProjectGroup === 'all'
       ? projects
-      : projectGroups.get(selectedProjectGroup) ?? [];
+      : projects.filter((project) => project.id === selectedProjectGroup);
 
   const filteredProjects = useMemo(() => {
-    const stateConstraint = selectedState === 'ALL STATES' ? undefined : selectedState;
+    const stateConstraint = selectedState === 'all' ? undefined : selectedState;
     let workingSet = selectedGroupProjects;
     if (stateConstraint) {
       workingSet = workingSet.filter((project) => project.state === stateConstraint);

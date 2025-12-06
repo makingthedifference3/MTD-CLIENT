@@ -1,5 +1,6 @@
-import type { CSSProperties } from 'react';
 import type { SelectOption } from '../lib/projectFilters';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Badge } from './ui/badge';
 
 export interface ProjectFilterBarProps {
   brandColors?: { primary: string; gradient: string };
@@ -9,14 +10,10 @@ export interface ProjectFilterBarProps {
   states: string[];
   selectedState: string;
   onStateChange: (value: string) => void;
-  tollOptions?: SelectOption[];
-  selectedToll?: string;
-  onTollChange?: (value: string) => void;
+  subcompanyOptions?: SelectOption[];
+  selectedSubcompany?: string;
+  onSubcompanyChange?: (value: string) => void;
 }
-
-const selectBaseStyles = (brandColors?: ProjectFilterBarProps['brandColors']): CSSProperties => ({
-  borderColor: brandColors?.primary || '#a78bfa',
-});
 
 export default function ProjectFilterBar({
   brandColors,
@@ -26,68 +23,83 @@ export default function ProjectFilterBar({
   states,
   selectedState,
   onStateChange,
-  tollOptions = [],
-  selectedToll = 'all',
-  onTollChange,
+  subcompanyOptions = [],
+  selectedSubcompany = 'all',
+  onSubcompanyChange,
 }: ProjectFilterBarProps) {
+  const accent = brandColors?.primary || 'var(--color-emerald-500, #10b981)';
+  const selectedProjectOption = projectGroupOptions.find((option) => option.value === selectedProjectGroup);
+  const selectedProjectLabel = selectedProjectGroup === 'all' ? 'All Projects' : selectedProjectOption?.label ?? 'Selected Project';
+
   return (
-    <div className="flex flex-wrap justify-between items-end gap-4 mb-8">
+    <div className="bg-card/80 border border-border rounded-2xl p-4 md:p-5 shadow-sm backdrop-blur mb-8">
       <div className="flex flex-wrap items-end gap-4">
-        {/* Toll Filter */}
-        {onTollChange && tollOptions.length > 0 && (
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Toll</p>
-            <select
-              value={selectedToll}
-              onChange={(event) => onTollChange(event.target.value)}
-              className="mt-1 px-5 py-3 bg-white/80 border-2 rounded-2xl font-semibold text-xs uppercase tracking-wide focus:outline-none focus:ring-4 shadow-lg hover:shadow-xl transition-all cursor-pointer"
-              style={selectBaseStyles(brandColors)}
-            >
-              <option value="all">All Tolls</option>
-              {tollOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+        {onSubcompanyChange && subcompanyOptions.length > 0 && (
+          <div className="space-y-1">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Subcompany</p>
+            <Select value={selectedSubcompany} onValueChange={onSubcompanyChange}>
+              <SelectTrigger className="w-[180px] border-2 rounded-xl" style={{ borderColor: accent }}>
+                <SelectValue placeholder="All Subcompanies" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Subcompanies</SelectItem>
+                {subcompanyOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         )}
 
-        {/* Project Filter */}
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Project</p>
-          <select
-            value={selectedProjectGroup}
-            onChange={(event) => {
-              onProjectGroupChange(event.target.value);
-            }}
-            className="mt-1 px-5 py-3 bg-white/80 border-2 rounded-2xl font-semibold text-xs uppercase tracking-wide focus:outline-none focus:ring-4 shadow-lg hover:shadow-xl transition-all cursor-pointer"
-            style={selectBaseStyles(brandColors)}
-          >
-            <option value="all">All Projects</option>
-            {projectGroupOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+        <div className="space-y-1">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Project</p>
+          <Select value={selectedProjectGroup} onValueChange={onProjectGroupChange}>
+            <SelectTrigger className="w-[220px] border-2 rounded-xl" style={{ borderColor: accent }}>
+              <SelectValue placeholder="All Projects" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Projects</SelectItem>
+              {projectGroupOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-      </div>
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">State</p>
-        <select
-          value={selectedState}
-          onChange={(event) => onStateChange(event.target.value)}
-          className="mt-1 px-6 py-3 bg-white/80 border-2 rounded-2xl font-semibold text-sm uppercase tracking-wide focus:outline-none focus:ring-4 shadow-lg hover:shadow-xl transition-all cursor-pointer"
-          style={selectBaseStyles(brandColors)}
-        >
-          <option value="ALL STATES">ALL STATES</option>
-          {states.map((state) => (
-            <option key={state} value={state || ''}>
-              {state?.toUpperCase()}
-            </option>
-          ))}
-        </select>
+
+        <div className="space-y-1">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">State</p>
+          <Select value={selectedState} onValueChange={onStateChange}>
+            <SelectTrigger className="w-[180px] border-2 rounded-xl" style={{ borderColor: accent }}>
+              <SelectValue placeholder="All States" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All States</SelectItem>
+              {states.map((state) => (
+                <SelectItem key={state} value={state || 'all'}>
+                  {state?.toUpperCase()}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 ml-auto text-xs text-muted-foreground">
+          <Badge variant="outline" className="bg-muted/60 border-dashed">
+            {selectedProjectLabel}
+          </Badge>
+          <Badge variant="outline" className="bg-muted/60 border-dashed">
+            {selectedState === 'all' ? 'All States' : selectedState.toUpperCase()}
+          </Badge>
+          {onSubcompanyChange && (
+            <Badge variant="outline" className="bg-muted/60 border-dashed">
+              {selectedSubcompany === 'all' ? 'All Subcompanies' : 'Subcompany Selected'}
+            </Badge>
+          )}
+        </div>
       </div>
     </div>
   );

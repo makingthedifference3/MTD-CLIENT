@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Home, FolderKanban, Clock, FileText, FileBarChart, Image, Newspaper, ChevronDown, ChevronRight, LogOut } from 'lucide-react';
+import { Home, FolderKanban, Clock, FileText, FileBarChart, Image, Newspaper, ChevronRight, LogOut } from 'lucide-react';
 import CompanyLogo from './CompanyLogo';
-// Brand colors available via partner.primary_color if needed
 
 interface SidebarProps {
   currentView: string;
@@ -67,20 +66,17 @@ export default function Sidebar({
 
   return (
     <div 
-      className={`relative flex flex-col shadow-lg transition-all duration-300 ${
+      className={`relative flex flex-col border-r bg-card transition-all duration-300 ${
         isExpanded ? 'w-72' : 'w-20'
       }`}
-      style={{
-        background: 'linear-gradient(180deg, #059669, #10b981)',
-      }}
       onMouseEnter={() => setIsExpanded(true)}
       onMouseLeave={() => setIsExpanded(false)}
     >
       <div 
-        className="p-4 shadow-lg h-[88px] flex items-center rounded-t-3xl bg-gradient-to-br from-emerald-700 to-emerald-600"
+        className="p-4 h-[88px] flex items-center border-b"
       >
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full overflow-hidden bg-white shadow-lg flex-shrink-0 ring-4 ring-white/30">
+          <div className="w-12 h-12 rounded-full overflow-hidden bg-muted flex items-center justify-center flex-shrink-0 border">
             {partner && (
               <CompanyLogo 
                 website={partner.website || ''} 
@@ -91,10 +87,10 @@ export default function Sidebar({
           </div>
           {isExpanded && (
             <div className="overflow-hidden animate-fadeIn">
-              <h1 className="text-lg font-bold text-white drop-shadow-md tracking-tight whitespace-nowrap">
-                {partner ? `${getShortCompanyName(partner.company_name)} X MTD` : 'CSR Portal'}
+              <h1 className="text-lg font-bold text-foreground tracking-tight whitespace-nowrap">
+                {partner ? `${getShortCompanyName(partner.company_name)}` : 'CSR Portal'}
               </h1>
-              <p className="text-xs font-semibold text-white/90 drop-shadow tracking-wide whitespace-nowrap">
+              <p className="text-xs font-medium text-muted-foreground whitespace-nowrap">
                 CSR Partner Portal
               </p>
             </div>
@@ -102,11 +98,11 @@ export default function Sidebar({
         </div>
       </div>
 
-      <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+      <nav className="flex-1 py-6 px-3 space-y-2 overflow-y-auto scrollbar-hide">
         {menuItems.map((item) => {
-          const Icon = item.icon;
           const isActive = currentView === item.id;
-
+          const Icon = item.icon;
+          
           return (
             <div key={item.id}>
               <button
@@ -117,46 +113,41 @@ export default function Sidebar({
                     onViewChange(item.id);
                   }
                 }}
-                className={`w-full flex items-center ${isExpanded ? 'justify-between' : 'justify-center'} px-4 py-3 rounded-lg font-semibold text-sm transition-all duration-300 group ${
-                  isActive
-                    ? 'text-white shadow-lg bg-white/25 backdrop-blur-sm'
-                    : 'text-white/80 hover:bg-white/15 hover:text-white'
+                className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 group ${
+                  isActive 
+                    ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20' 
+                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                 }`}
-                title={!isExpanded ? item.label : ''}
               >
-                <div className={`flex items-center ${isExpanded ? 'gap-3' : ''}`}>
-                  <Icon className={`w-5 h-5 transition-transform flex-shrink-0`} />
-                  {isExpanded && <span className="tracking-wide whitespace-nowrap">{item.label}</span>}
-                </div>
-                {item.hasDropdown && isExpanded && (
-                  <ChevronDown
-                    className={`w-4 h-4 transition-transform duration-300 flex-shrink-0 ${
-                      showProjectList ? 'rotate-180' : ''
-                    }`}
-                  />
+                <Icon size={24} className={`flex-shrink-0 transition-transform duration-200 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`} />
+                
+                {isExpanded && (
+                  <div className="flex-1 flex items-center justify-between overflow-hidden animate-fadeIn">
+                    <span className="font-medium tracking-wide text-sm">{item.label}</span>
+                    {item.hasDropdown && (
+                      <ChevronRight 
+                        size={16} 
+                        className={`transition-transform duration-200 ${showProjectList ? 'rotate-90' : ''}`}
+                      />
+                    )}
+                  </div>
                 )}
               </button>
 
+              {/* Project Dropdown */}
               {item.hasDropdown && showProjectList && isExpanded && (
-                <div className="mt-2 ml-4 space-y-2 animate-fadeIn">
+                <div className="mt-2 ml-4 pl-4 border-l-2 border-border space-y-1 animate-slideDown">
                   {projects.map((project) => (
                     <button
                       key={project.id}
                       onClick={() => onProjectSelect(project.id)}
-                      className={`w-full text-left px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-300 whitespace-nowrap overflow-hidden ${
+                      className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors truncate ${
                         selectedProject === project.id
-                          ? 'text-white shadow-lg bg-white/30 backdrop-blur-sm'
-                          : 'text-white/70 hover:bg-white/15 hover:text-white'
+                          ? 'bg-primary/10 text-primary font-medium'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
                       }`}
                     >
-                      <div className="flex flex-col text-left">
-                        <span>{project.name}</span>
-                        {project.start_date && (
-                          <span className="text-[10px] uppercase tracking-widest text-white/70">
-                            {new Date(project.start_date).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
-                          </span>
-                        )}
-                      </div>
+                      {project.name}
                     </button>
                   ))}
                 </div>
@@ -165,29 +156,18 @@ export default function Sidebar({
           );
         })}
       </nav>
-      
-      {/* Logout Button at Bottom */}
-      <div 
-        className="p-4 shadow-inner rounded-b-3xl bg-emerald-700/40"
-      >
+
+      <div className="p-4 border-t bg-muted/30">
         <button
           onClick={logout}
-          className={`w-full flex items-center ${isExpanded ? 'justify-start gap-3' : 'justify-center'} px-4 py-3 rounded-lg font-semibold text-sm transition-all duration-300 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white shadow-md hover:shadow-lg`}
-          title={!isExpanded ? 'Logout' : ''}
+          className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 text-muted-foreground hover:bg-destructive hover:text-destructive-foreground group`}
         >
-          <LogOut className="w-5 h-5 transition-transform flex-shrink-0" />
-          {isExpanded && <span className="tracking-wide whitespace-nowrap">LOGOUT</span>}
+          <LogOut size={24} className="flex-shrink-0 transition-transform duration-200 group-hover:scale-110" />
+          {isExpanded && (
+            <span className="font-medium tracking-wide text-sm animate-fadeIn">LOGOUT</span>
+          )}
         </button>
       </div>
-      
-      {/* Expand/Collapse Indicator */}
-      {!isExpanded && (
-        <div 
-          className="absolute top-1/2 -right-3 text-white p-1 rounded-full shadow-md bg-gradient-to-r from-emerald-500 to-teal-600"
-        >
-          <ChevronRight className="w-4 h-4" />
-        </div>
-      )}
     </div>
   );
 }

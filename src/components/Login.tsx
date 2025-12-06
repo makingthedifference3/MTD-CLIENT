@@ -29,13 +29,13 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-mtd-light via-white to-mtd-light flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4 relative overflow-hidden">
       {/* Decorative Blobs */}
       <div className="absolute top-0 left-0 w-72 h-72 bg-mtd-accent opacity-20 rounded-full mix-blend-multiply filter blur-xl animate-blob"></div>
       <div className="absolute top-0 right-0 w-72 h-72 bg-mtd-primary opacity-20 rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-2000"></div>
       <div className="absolute -bottom-8 left-20 w-72 h-72 bg-mtd-secondary opacity-20 rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-4000"></div>
 
-      <div className="bg-white/80 backdrop-blur-lg rounded-3xl shadow-2xl w-full max-w-md p-8 border border-white/50 relative z-10">
+      <div className="bg-card/80 backdrop-blur-lg rounded-3xl shadow-2xl w-full max-w-md p-8 border border-border/50 relative z-10">
         <div className="text-center mb-10">
           {/* MTD NGO Logo */}
           <div className="mb-6 relative group cursor-pointer">
@@ -56,14 +56,14 @@ export default function Login() {
             </div>
           </div>
           
-          <h1 className="text-3xl font-bold text-gray-800 mb-2 tracking-tight">Welcome Back</h1>
-          <p className="text-gray-500 font-medium">CSR Partner Portal Login</p>
+          <h1 className="text-3xl font-bold text-foreground mb-2 tracking-tight">Welcome Back</h1>
+          <p className="text-muted-foreground font-medium">CSR Partner Portal Login</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-5">
             <div className="group">
-              <label htmlFor="pocName" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 ml-1 group-focus-within:text-mtd-primary transition-colors">
+              <label htmlFor="pocName" className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1 ml-1 group-focus-within:text-mtd-primary transition-colors">
                 POC Name
               </label>
               <div className="relative">
@@ -72,7 +72,7 @@ export default function Login() {
                   type="text"
                   value={pocName}
                   onChange={(e) => setPocName(e.target.value)}
-                  className="w-full px-4 py-3.5 rounded-xl bg-gray-50 border border-gray-200 text-gray-800 placeholder-gray-400 focus:ring-2 focus:ring-mtd-primary/20 focus:border-mtd-primary transition-all outline-none font-medium"
+                  className="w-full px-4 py-3.5 rounded-xl bg-muted/50 border border-border text-foreground placeholder-gray-400 focus:ring-2 focus:ring-mtd-primary/20 focus:border-mtd-primary transition-all outline-none font-medium"
                   placeholder="e.g. John Doe"
                   required
                 />
@@ -80,7 +80,7 @@ export default function Login() {
             </div>
 
             <div className="group">
-              <label htmlFor="password" className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 ml-1 group-focus-within:text-mtd-primary transition-colors">
+              <label htmlFor="password" className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1 ml-1 group-focus-within:text-mtd-primary transition-colors">
                 Password
               </label>
               <div className="relative">
@@ -89,7 +89,7 @@ export default function Login() {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-3.5 rounded-xl bg-gray-50 border border-gray-200 text-gray-800 placeholder-gray-400 focus:ring-2 focus:ring-mtd-primary/20 focus:border-mtd-primary transition-all outline-none font-medium"
+                  className="w-full px-4 py-3.5 rounded-xl bg-muted/50 border border-border text-foreground placeholder-gray-400 focus:ring-2 focus:ring-mtd-primary/20 focus:border-mtd-primary transition-all outline-none font-medium"
                   placeholder="••••••••"
                   required
                 />

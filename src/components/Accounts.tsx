@@ -1,7 +1,7 @@
 import { useMemo, useCallback } from 'react';
 import type { Project } from '../types/csr';
 
-import type { UseProjectFiltersResult } from '../lib/projectFilters';
+import type { SelectOption, UseProjectFiltersResult } from '../lib/projectFilters';
 import ProjectFilterBar from './ProjectFilterBar';
 
 // Color palette for projects
@@ -22,9 +22,20 @@ interface AccountsProps {
   projectFilters: UseProjectFiltersResult;
   brandColors?: { primary: string; gradient: string } | null;
   loading?: boolean;
+  subcompanyOptions?: SelectOption[];
+  selectedSubcompany?: string;
+  onSubcompanyChange?: (value: string) => void;
 }
 
-export default function Accounts({ projectData, projectFilters, brandColors, loading }: AccountsProps) {
+export default function Accounts({
+  projectData,
+  projectFilters,
+  brandColors,
+  loading,
+  subcompanyOptions,
+  selectedSubcompany,
+  onSubcompanyChange,
+}: AccountsProps) {
   const relevantProjects = projectData.filter(project => projectFilters.visibleProjectIds.includes(project.id));
   const parentProjectMap = useMemo(() => {
     const map = new Map<string, Project>();
@@ -54,12 +65,17 @@ export default function Accounts({ projectData, projectFilters, brandColors, loa
   }, [parentProjectMap, subProjectCounts]);
 
   const budgetSummary = useMemo(() => {
-    const total = relevantProjects.reduce((sum, project) => sum + sanitizeBudgetValue(project.total_budget), 0);
-    const utilized = relevantProjects.reduce((sum, project) => sum + sanitizeBudgetValue(project.utilized_budget), 0);
+    let total = 0;
+    let utilized = 0;
+    relevantProjects.forEach((project) => {
+      const normalized = getNormalizedBudget(project);
+      total += normalized.totalBudget;
+      utilized += normalized.utilizedBudget;
+    });
     const remaining = total - utilized;
     const percentage = total > 0 ? (utilized / total) * 100 : 0;
     return { total, utilized, remaining, percentage };
-  }, [relevantProjects]);
+  }, [relevantProjects, getNormalizedBudget]);
 
   const utilizedPercentage = budgetSummary.percentage;
   const pendingPercentage = 100 - utilizedPercentage;
@@ -106,13 +122,13 @@ export default function Accounts({ projectData, projectFilters, brandColors, loa
   };
 
   return (
-    <div className="flex-1 bg-white overflow-auto">
+    <div className="flex-1 bg-background overflow-auto">
       <div className="p-8">
         <div className="mb-8">
-          <h1 className="text-4xl md:text-5xl font-bold text-slate-900 dark:text-white mb-2">
+          <h1 className="text-4xl md:text-5xl font-bold text-foreground dark:text-white mb-2">
             {currentProjectName ? `💰 ${currentProjectName}` : '💰 Budget Utilization'}
           </h1>
-          <p className="text-slate-600 dark:text-slate-400 text-lg">
+          <p className="text-muted-foreground dark:text-slate-400 text-lg">
             {currentProjectName ? 'Project-specific budget data' : 'Combined budget from all projects'}
           </p>
         </div>
@@ -125,16 +141,19 @@ export default function Accounts({ projectData, projectFilters, brandColors, loa
           states={projectFilters.states}
           selectedState={projectFilters.selectedState}
           onStateChange={projectFilters.setSelectedState}
+          subcompanyOptions={subcompanyOptions}
+          selectedSubcompany={selectedSubcompany}
+          onSubcompanyChange={onSubcompanyChange}
         />
 
         {loading && (
-          <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-md text-center font-semibold text-slate-600">
+          <div className="bg-card rounded-xl border border-border p-8 shadow-md text-center font-semibold text-muted-foreground">
             Loading budget utilization...
           </div>
         )}
 
         {isEmpty && (
-          <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-md text-center font-semibold text-slate-600">
+          <div className="bg-card rounded-xl border border-border p-8 shadow-md text-center font-semibold text-muted-foreground">
             No budget data available for the selected filters.
           </div>
         )}
@@ -142,8 +161,8 @@ export default function Accounts({ projectData, projectFilters, brandColors, loa
         {!loading && !isEmpty && (
           <>
             {/* Summary Card with Donut Chart */}
-            <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-md hover:shadow-lg hover:border-emerald-300 transition-all mb-8">
-              <h3 className="text-xl font-black text-slate-700 mb-6">📊 Overall Budget Summary</h3>
+            <div className="bg-card rounded-xl border border-border p-8 shadow-md hover:shadow-lg hover:border-emerald-300 transition-all mb-8">
+              <h3 className="text-xl font-black text-card-foreground mb-6">📊 Overall Budget Summary</h3>
               
               <div className="flex items-center justify-center gap-16 flex-wrap">
                 <div className="relative w-72 h-72 group">
@@ -151,7 +170,7 @@ export default function Accounts({ projectData, projectFilters, brandColors, loa
                   <div className="absolute inset-0 bg-gradient-to-r from-green-400 to-emerald-500 rounded-full blur-2xl opacity-20 group-hover:opacity-30 transition-opacity"></div>
                   
                   <svg className="relative w-full h-full -rotate-90 drop-shadow-2xl" viewBox="0 0 200 200">
-                    <circle cx="100" cy="100" r="90" fill="none" stroke="#e2e8f0" strokeWidth="20" />
+                    <circle cx="100" cy="100" r="90" fill="none" stroke="hsl(var(--muted))" strokeWidth="20" />
                     <circle
                       cx="100" cy="100" r="90" fill="none"
                       stroke="url(#gradient-utilized)" strokeWidth="20"
@@ -172,8 +191,8 @@ export default function Accounts({ projectData, projectFilters, brandColors, loa
                         <stop offset="100%" stopColor="#059669" />
                       </linearGradient>
                       <linearGradient id="gradient-pending" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#ef4444" />
-                        <stop offset="100%" stopColor="#dc2626" />
+                        <stop offset="0%" stopColor="#f97316" />
+                        <stop offset="100%" stopColor="#ea580c" />
                       </linearGradient>
                     </defs>
                   </svg>
@@ -192,7 +211,7 @@ export default function Accounts({ projectData, projectFilters, brandColors, loa
                   <div className="group hover:scale-105 transition-transform">
                     <div className="flex items-center gap-3 mb-1">
                       <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-green-400 to-emerald-600 shadow-md"></div>
-                      <span className="text-lg font-black text-slate-700">UTILIZED</span>
+                      <span className="text-lg font-black text-card-foreground">UTILIZED</span>
                     </div>
                     <p className="text-3xl font-black bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent ml-9">
                       {formatCurrency(budgetSummary.utilized)}
@@ -200,14 +219,14 @@ export default function Accounts({ projectData, projectFilters, brandColors, loa
                   </div>
                   <div className="group hover:scale-105 transition-transform">
                     <div className="flex items-center gap-3 mb-1">
-                      <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-red-400 to-rose-600 shadow-md"></div>
-                      <span className="text-lg font-black text-slate-700">PENDING</span>
+                      <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-orange-400 to-orange-600 shadow-md"></div>
+                      <span className="text-lg font-black text-card-foreground">PENDING</span>
                     </div>
-                    <p className="text-3xl font-black bg-gradient-to-r from-red-600 to-rose-600 bg-clip-text text-transparent ml-9">
+                    <p className="text-3xl font-black bg-gradient-to-r from-orange-600 to-orange-600 bg-clip-text text-transparent ml-9">
                       {formatCurrency(budgetSummary.total - budgetSummary.utilized)}
                     </p>
                   </div>
-                  <div className="pt-4 border-t border-slate-200">
+                  <div className="pt-4 border-t border-border">
                     <p className="text-sm font-semibold text-slate-500">Total Budget</p>
                     <p className="text-2xl font-black text-slate-800">{formatCurrency(budgetSummary.total)}</p>
                   </div>
@@ -216,8 +235,8 @@ export default function Accounts({ projectData, projectFilters, brandColors, loa
             </div>
 
             {/* Project-wise Breakdown */}
-            <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-md hover:shadow-lg hover:border-emerald-300 transition-all">
-              <h3 className="text-xl font-black text-slate-700 mb-6">📁 Project-wise Budget Breakdown</h3>
+            <div className="bg-card rounded-xl border border-border p-8 shadow-md hover:shadow-lg hover:border-emerald-300 transition-all">
+              <h3 className="text-xl font-black text-card-foreground mb-6">📁 Project-wise Budget Breakdown</h3>
               
               <div className="space-y-4">
                 {projectBudgetData.map((project) => {
@@ -241,17 +260,21 @@ export default function Accounts({ projectData, projectFilters, brandColors, loa
                       </div>
                       
                       {/* Progress bar */}
-                      <div className="h-6 bg-white rounded-full overflow-hidden shadow-inner mb-3">
-                        <div
-                          className={`h-full bg-gradient-to-r ${colors.bg} rounded-full transition-all duration-700 flex items-center justify-end pr-2`}
-                          style={{ width: `${Math.max(project.utilizationPercent, 3)}%` }}
-                        >
-                          {project.utilizationPercent > 15 && (
-                            <span className="text-xs font-bold text-white drop-shadow">
-                              {project.utilizationPercent.toFixed(0)}%
-                            </span>
-                          )}
-                        </div>
+                      <div className="h-6 bg-card rounded-full overflow-hidden shadow-inner mb-3">
+                        {project.utilizationPercent > 0 ? (
+                          <div
+                            className={`h-full bg-gradient-to-r ${colors.bg} rounded-full transition-all duration-700 flex items-center justify-end pr-2`}
+                            style={{ width: `${Math.max(project.utilizationPercent, 3)}%` }}
+                          >
+                            {project.utilizationPercent > 15 && (
+                              <span className="text-xs font-bold text-white drop-shadow">
+                                {project.utilizationPercent.toFixed(0)}%
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="h-full w-full" aria-hidden="true" />
+                        )}
                       </div>
                       
                       {/* Stats row */}
@@ -259,14 +282,14 @@ export default function Accounts({ projectData, projectFilters, brandColors, loa
                         <div className="flex items-center gap-4">
                           <div className="flex items-center gap-2">
                             <div className="w-3 h-3 rounded-full bg-gradient-to-r from-green-400 to-emerald-500"></div>
-                            <span className="font-semibold text-slate-600">
+                            <span className="font-semibold text-muted-foreground">
                               Utilized: <span className="text-emerald-600 font-bold">{formatCurrency(project.utilizedBudget)}</span>
                             </span>
                           </div>
                           <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full bg-gradient-to-r from-red-400 to-rose-500"></div>
-                            <span className="font-semibold text-slate-600">
-                              Pending: <span className="text-rose-600 font-bold">{formatCurrency(project.pendingBudget)}</span>
+                            <div className="w-3 h-3 rounded-full bg-gradient-to-r from-orange-400 to-orange-500"></div>
+                            <span className="font-semibold text-muted-foreground">
+                              Pending: <span className="text-orange-600 font-bold">{formatCurrency(project.pendingBudget)}</span>
                             </span>
                           </div>
                         </div>

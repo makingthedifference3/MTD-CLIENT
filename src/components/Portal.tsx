@@ -29,6 +29,8 @@ import ArticleHighlights from './Article';
 import { useProjectFilters } from '../lib/projectFilters';
 import { getBrandColors, getCompanyLogo } from '../lib/logodev';
 import { LogOut } from 'lucide-react';
+import { Button } from './ui/button';
+import { Badge } from './ui/badge';
 
 interface PartnerCollections {
   projects: Project[];
@@ -49,6 +51,7 @@ export default function Portal() {
   const [dataLoading, setDataLoading] = useState(false);
   const [dataError, setDataError] = useState<string | null>(null);
   const [tolls, setTolls] = useState<Toll[]>([]);
+  const [selectedSubcompany, setSelectedSubcompany] = useState('all');
   const [collections, setCollections] = useState<PartnerCollections>({
     projects: [],
     timelines: [],
@@ -196,6 +199,27 @@ export default function Portal() {
     };
   }, [partner?.id, user?.toll_id]);
 
+  const ownedSubcompanyId = user?.toll_id ?? null;
+  const subcompanyOptions = useMemo(
+    () =>
+      ownedSubcompanyId
+        ? []
+        : tolls.map((toll) => ({ value: toll.id, label: toll.toll_name })),
+    [tolls, ownedSubcompanyId]
+  );
+  const subcompanyFilterEnabled = !ownedSubcompanyId && subcompanyOptions.length > 0;
+
+  useEffect(() => {
+    setSelectedSubcompany((prev) => {
+      if (ownedSubcompanyId) return ownedSubcompanyId;
+      if (!subcompanyFilterEnabled) return 'all';
+      if (prev !== 'all' && !subcompanyOptions.some((option) => option.value === prev)) {
+        return 'all';
+      }
+      return prev;
+    });
+  }, [ownedSubcompanyId, subcompanyFilterEnabled, subcompanyOptions]);
+
   function handleViewChange(view: string) {
     setCurrentView(view);
     if (view !== 'projects') {
@@ -212,9 +236,19 @@ export default function Portal() {
     setShowProjectList((prev) => !prev);
   }
 
+  const filteredBySubcompany = useMemo(() => {
+    if (ownedSubcompanyId) {
+      return collections.projects.filter((project) => project.toll_id === ownedSubcompanyId);
+    }
+    if (selectedSubcompany === 'all') {
+      return collections.projects;
+    }
+    return collections.projects.filter((project) => project.toll_id === selectedSubcompany);
+  }, [collections.projects, ownedSubcompanyId, selectedSubcompany]);
+
   const activeProjectIds = useMemo(
-    () => collections.projects.map((project) => project.id),
-    [collections.projects]
+    () => filteredBySubcompany.map((project) => project.id),
+    [filteredBySubcompany]
   );
 
   useEffect(() => {
@@ -223,16 +257,37 @@ export default function Portal() {
     }
   }, [activeProjectIds, selectedProject]);
 
-  const visibleProjects = collections.projects.filter((project) => activeProjectIds.includes(project.id));
+  const visibleProjects = filteredBySubcompany;
 
   // Shared project/date/state filter logic for all main views
   const projectFilters = useProjectFilters({
-    projects: collections.projects,
+    projects: filteredBySubcompany,
     selectedProjectId: selectedProject,
   });
 
+  const subcompanyChangeHandler = subcompanyFilterEnabled ? setSelectedSubcompany : undefined;
+
   const currentProject = collections.projects.find((p) => p.id === selectedProject);
   const brandColors = partner ? getBrandColors(partner.primary_color || '#059669') : null;
+
+  const viewLabel = (() => {
+    switch (currentView) {
+      case 'dashboard':
+        return 'Dashboard';
+      case 'timelines':
+        return 'Timelines';
+      case 'accounts':
+        return 'Accounts';
+      case 'reports':
+        return 'Reports';
+      case 'media':
+        return 'Media Gallery';
+      case 'article':
+        return 'News Articles';
+      default:
+        return 'Projects';
+    }
+  })();
 
   const handleUpdateProject = async (projectId: string, updates: Partial<Project>) => {
     try {
@@ -258,7 +313,7 @@ export default function Portal() {
   };
 
   return (
-    <div className="h-screen flex overflow-hidden bg-white">
+    <div className="h-screen flex overflow-hidden bg-background">
       <Sidebar
         currentView={currentView}
         onViewChange={handleViewChange}
@@ -270,18 +325,13 @@ export default function Portal() {
       />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex-1 flex flex-col overflow-hidden bg-white">
+        <div className="flex-1 flex flex-col overflow-hidden bg-background">
           <header
-            className="px-8 py-4 h-[88px] flex items-center justify-between shadow-md bg-gradient-to-r from-emerald-500 to-emerald-600"
-            style={{
-              borderBottom: '1px solid rgba(16, 185, 129, 0.2)',
-              margin: 0,
-              padding: '1rem 2rem',
-            }}
+            className="px-8 py-4 h-[88px] flex items-center justify-between bg-card/90 border-b border-border/70 shadow-sm backdrop-blur"
           >
             <div className="flex items-center gap-6">
               <div
-                className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-xl ring-4 ring-white/30 backdrop-blur-sm overflow-hidden"
+                className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-xl ring-4 ring-muted/30 backdrop-blur-sm overflow-hidden"
                 style={{
                   background: 'linear-gradient(135deg, rgba(255,255,255,0.95), rgba(255,255,255,0.85))',
                   border: `2px solid ${brandColors?.primary || '#667eea'}`,
@@ -294,63 +344,55 @@ export default function Portal() {
                 />
               </div>
               <div>
-                <h2 className="text-2xl font-bold text-white drop-shadow-md">
-                  {currentProject?.name || 'ALL PROJECTS OVERVIEW'}
-                </h2>
-                <p className="text-sm font-semibold text-white/90 mt-1 drop-shadow">
-                  {currentProject?.state || 'All Locations'} •
-                  {currentView === 'dashboard'
-                    ? 'Dashboard'
-                    : currentView === 'timelines'
-                      ? 'Timelines'
-                      : currentView === 'accounts'
-                        ? 'Accounts'
-                        : currentView === 'reports'
-                          ? 'Reports'
-                          : currentView === 'media'
-                            ? 'Media Gallery'
-                            : currentView === 'article'
-                              ? 'News Articles'
-                              : 'Projects'}
+                <div className="flex items-center gap-2">
+                  <h2 className="text-2xl font-bold text-foreground">
+                    {currentProject?.name || 'ALL PROJECTS OVERVIEW'}
+                  </h2>
+                  <Badge variant="outline" className="uppercase tracking-wide bg-muted/60 border-dashed">
+                    {viewLabel}
+                  </Badge>
+                </div>
+                <p className="text-sm font-semibold text-muted-foreground mt-1">
+                  {currentProject?.state || 'All Locations'} • {viewLabel}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-6">
               <div className="text-right">
-                <p className="text-xs font-semibold text-white/70 uppercase tracking-wider drop-shadow">Logged in as</p>
-                <p className="text-sm font-bold text-white drop-shadow-md">{user?.full_name}</p>
-                <p className="text-xs font-semibold text-white/80 drop-shadow">{partner?.company_name}</p>
+                <p className="text-xs font-semibold text-foreground/70 uppercase tracking-wider ">Logged in as</p>
+                <p className="text-sm font-bold text-foreground ">{user?.full_name}</p>
+                <p className="text-xs font-semibold text-foreground/80 ">{partner?.company_name}</p>
               </div>
-              <button
-                onClick={logout}
-                className="flex items-center gap-2 px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-all shadow-md hover:shadow-lg font-semibold"
-              >
+              <Button variant="destructive" onClick={logout} className="gap-2 shadow-md">
                 <LogOut className="w-5 h-5" />
                 <span className="text-sm">Logout</span>
-              </button>
+              </Button>
             </div>
           </header>
 
-          <div className="flex-1 overflow-auto bg-white rounded-b-3xl">
+          <div className="flex-1 overflow-auto bg-background rounded-b-3xl">
             {dataError && (
               <div className="mx-8 mt-6 mb-2 p-4 border-2 border-red-200 bg-red-50 rounded-2xl text-red-700 font-semibold">
                 {dataError}
               </div>
             )}
 
-        {currentView === 'dashboard' && (
-          <Dashboard
-            selectedProject={selectedProject}
-            projects={visibleProjects}
-            loading={dataLoading}
-            onUpdateProject={handleUpdateProject}
-            tolls={tolls}
-            photos={collections.mediaPhotos}
-            videos={collections.mediaVideos}
-            activities={collections.activities}
-            onNavigate={handleViewChange}
-          />
-        )}            {currentView === 'timelines' && (
+            {currentView === 'dashboard' && (
+              <Dashboard
+                selectedProject={selectedProject}
+                projects={visibleProjects}
+                loading={dataLoading}
+                onUpdateProject={handleUpdateProject}
+                photos={collections.mediaPhotos}
+                videos={collections.mediaVideos}
+                activities={collections.activities}
+                onNavigate={handleViewChange}
+                subcompanyOptions={subcompanyOptions}
+                selectedSubcompany={selectedSubcompany}
+                onSubcompanyChange={subcompanyChangeHandler}
+              />
+            )}
+            {currentView === 'timelines' && (
               <Timelines
                 projects={visibleProjects}
                 // timelines={collections.timelines}
@@ -358,6 +400,9 @@ export default function Portal() {
                 projectFilters={projectFilters}
                 brandColors={brandColors}
                 loading={dataLoading}
+                subcompanyOptions={subcompanyOptions}
+                selectedSubcompany={selectedSubcompany}
+                onSubcompanyChange={subcompanyChangeHandler}
               />
             )}
 
@@ -368,6 +413,9 @@ export default function Portal() {
                 projectFilters={projectFilters}
                 brandColors={brandColors}
                 loading={dataLoading}
+                subcompanyOptions={subcompanyOptions}
+                selectedSubcompany={selectedSubcompany}
+                onSubcompanyChange={subcompanyChangeHandler}
               />
             )}
 
@@ -379,6 +427,9 @@ export default function Portal() {
                 projectFilters={projectFilters}
                 brandColors={brandColors}
                 loading={dataLoading}
+                subcompanyOptions={subcompanyOptions}
+                selectedSubcompany={selectedSubcompany}
+                onSubcompanyChange={subcompanyChangeHandler}
               />
             )}
 
@@ -390,9 +441,11 @@ export default function Portal() {
                 projectFilters={projectFilters}
                 brandColors={brandColors}
                 loading={dataLoading}
+                subcompanyOptions={subcompanyOptions}
+                selectedSubcompany={selectedSubcompany}
+                onSubcompanyChange={subcompanyChangeHandler}
               />
             )}
-
             {currentView === 'article' && (
               <ArticleHighlights
                 projects={visibleProjects}
@@ -401,6 +454,9 @@ export default function Portal() {
                 projectFilters={projectFilters}
                 brandColors={brandColors}
                 loading={dataLoading}
+                subcompanyOptions={subcompanyOptions}
+                selectedSubcompany={selectedSubcompany}
+                onSubcompanyChange={subcompanyChangeHandler}
               />
             )}
           </div>
