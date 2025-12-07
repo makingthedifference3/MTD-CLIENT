@@ -218,24 +218,51 @@ export default function Dashboard({
     return result;
   }, [metrics]);
 
-  const allMedia = useMemo(() => {
+  const recentMedia = useMemo(() => {
     const media = [
       ...photos.filter(p => visibleProjectIds.includes(p.project_id)).map(p => ({ ...p, mediaType: 'photo' as const })),
       ...videos.filter(v => visibleProjectIds.includes(v.project_id)).map(v => ({ ...v, mediaType: 'video' as const }))
     ];
-    return media;
+    return media.sort((a, b) => {
+      const aTime = Date.parse(a.date ?? '') || 0;
+      const bTime = Date.parse(b.date ?? '') || 0;
+      return bTime - aTime;
+    });
   }, [photos, videos, visibleProjectIds]);
 
-  const filteredActivities = useMemo(() => {
-    const filtered = activities.filter(a => visibleProjectIds.includes(a.project_id));
-    // Get unique projects only - one activity per project
-    const uniqueProjectMap = new Map<string, ProjectActivity>();
-    filtered.forEach(activity => {
-      if (!uniqueProjectMap.has(activity.project_id)) {
-        uniqueProjectMap.set(activity.project_id, activity);
+  const getActivityTimestamp = (activity: ProjectActivity) => {
+    const rawDate = activity.updated_at ?? activity.created_at ?? activity.actual_end_date ?? activity.end_date ?? activity.start_date;
+    return rawDate ? Date.parse(rawDate) : 0;
+  };
+
+  const recentProjectSummaries = useMemo(() => {
+    const filtered = activities.filter((activity) => visibleProjectIds.includes(activity.project_id));
+    const grouped = new Map<string, { activities: ProjectActivity[]; latestTimestamp: number }>();
+
+    filtered.forEach((activity) => {
+      const timestamp = getActivityTimestamp(activity);
+      const entry = grouped.get(activity.project_id);
+      if (entry) {
+        entry.activities.push(activity);
+        entry.latestTimestamp = Math.max(entry.latestTimestamp, timestamp);
+      } else {
+        grouped.set(activity.project_id, { activities: [activity], latestTimestamp: timestamp });
       }
     });
-    return Array.from(uniqueProjectMap.values()).slice(0, 5);
+
+    return Array.from(grouped.entries())
+      .sort(([, a], [, b]) => b.latestTimestamp - a.latestTimestamp)
+      .slice(0, 6)
+      .map(([projectId, entry]) => {
+        const averageCompletion = entry.activities.length
+          ? Math.round(entry.activities.reduce((sum, activity) => sum + activity.completion_percentage, 0) / entry.activities.length)
+          : 0;
+        return {
+          projectId,
+          completion: Math.min(Math.max(averageCompletion, 0), 100),
+          activities: entry.activities,
+        };
+      });
   }, [activities, visibleProjectIds]);
 
   const getMetricTitle = (key: string): string => {
@@ -871,14 +898,17 @@ export default function Dashboard({
                     <div className="w-10 h-10 rounded-xl bg-sky-100 dark:bg-sky-950/30 flex items-center justify-center">
                       <Image className="w-5 h-5 text-sky-600" />
                     </div>
-                    <CardTitle className="text-base">{allMedia.length} items</CardTitle>
+                    <div>
+                      <CardTitle className="text-base">Recent Items</CardTitle>
+                      <CardDescription className="text-xs">{recentMedia.length} items</CardDescription>
+                    </div>
                   </div>
                   <Button variant="outline" size="sm" onClick={() => onNavigate?.('media')}>
                     View All <ChevronRight className="w-4 h-4 ml-1" />
                   </Button>
                 </CardHeader>
                 <CardContent>
-                  {allMedia.length === 0 ? (
+                  {recentMedia.length === 0 ? (
                     <div className="aspect-video rounded-xl bg-muted flex items-center justify-center">
                       <div className="text-center">
                         <Image className="w-12 h-12 text-muted-foreground mx-auto mb-2" />
@@ -888,7 +918,7 @@ export default function Dashboard({
                   ) : (
                     <Carousel className="w-full overflow-hidden" opts={{ watchDrag: false }} onWheel={(event) => event.preventDefault()}>
                       <CarouselContent className="overflow-hidden">
-                        {allMedia.map((media, index) => {
+                        {recentMedia.map((media, index) => {
                           const displayTitle = media.update_title || media.title;
                           return (
                           <CarouselItem key={index}>
@@ -911,7 +941,7 @@ export default function Dashboard({
                           </CarouselItem>
                         );})}
                       </CarouselContent>
-                      {allMedia.length > 1 && (
+                      {recentMedia.length > 1 && (
                         <>
                           <CarouselPrevious className="left-2" />
                           <CarouselNext className="right-2" />
@@ -929,7 +959,7 @@ export default function Dashboard({
                     <div className="w-10 h-10 rounded-xl bg-cyan-100 dark:bg-cyan-950/30 flex items-center justify-center">
                       <Activity className="w-5 h-5 text-cyan-600" />
                     </div>
-                    <CardTitle className="text-base">{filteredActivities.length} activities</CardTitle>
+                    <CardTitle className="text-base">Recent Activities</CardTitle>
                   </div>
                   <Button variant="ghost" size="icon" onClick={() => onNavigate?.('timelines')}>
                     <ChevronRight className="w-4 h-4" />
@@ -937,14 +967,15 @@ export default function Dashboard({
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {filteredActivities.map((activity) => {
-                      const activityProject = projectsById.get(activity.project_id);
+                    {recentProjectSummaries.map((summary) => {
+                      const activityProject = projectsById.get(summary.projectId);
                       const activityProjectLabel = activityProject
                         ? formatProjectLabel(activityProject)
                         : 'Project info unavailable';
                       const projectState = activityProject?.state;
+                      const completionPercentage = summary.completion;
                       return (
-                        <div key={activity.id} className="p-3 rounded-xl bg-muted/50 space-y-2">
+                        <div key={summary.projectId} className="p-3 rounded-xl bg-muted/50 space-y-2">
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex-1 space-y-1">
                               <button
@@ -966,22 +997,22 @@ export default function Dashboard({
                               )}
                             </div>
                             <Badge 
-                              variant={activity.completion_percentage >= 100 ? 'default' : 'secondary'} 
+                              variant={completionPercentage >= 100 ? 'default' : 'secondary'} 
                               className={`text-xs ${
-                                activity.completion_percentage >= 100 
+                                completionPercentage >= 100 
                                   ? 'bg-emerald-500 text-white' 
                                   : 'bg-purple-500 text-white'
                               }`}
                             >
-                              {activity.completion_percentage}%
+                              {completionPercentage}%
                             </Badge>
                           </div>
                           {/* <p className="text-xs text-muted-foreground">{activity.section || 'Construction'}</p> */}
                           <Progress
-                            value={activity.completion_percentage}
+                            value={completionPercentage}
                             className="h-1.5"
                             indicatorClassName={
-                              activity.completion_percentage >= 100
+                              completionPercentage >= 100
                                 ? 'bg-gradient-to-r from-emerald-500 to-emerald-600'
                                 : 'bg-gradient-to-r from-teal-500 to-cyan-500'
                             }
@@ -989,7 +1020,7 @@ export default function Dashboard({
                         </div>
                       );
                     })}
-                    {filteredActivities.length === 0 && (
+                    {recentProjectSummaries.length === 0 && (
                       <p className="text-center text-muted-foreground text-sm py-8">No activities found</p>
                     )}
                   </div>
