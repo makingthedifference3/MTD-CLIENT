@@ -16,9 +16,11 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
 import ProjectFilterBar from '@/components/ProjectFilterBar';
 import StateLocationSelector from '@/components/StateLocationSelector';
+import GroupedProjectSelector, { matchesGroupProject, type GroupedProject } from '@/components/GroupedProjectSelector';
 
 interface DashboardProps {
   selectedProject: string | null;
@@ -32,6 +34,8 @@ interface DashboardProps {
   subcompanyOptions?: SelectOption[];
   selectedSubcompany?: string;
   onSubcompanyChange?: (value: string) => void;
+  onSelectProject?: (projectId: string | null) => void;
+  onSelectState?: (state: string) => void;
 }
 
 type SelectOption = { value: string; label: string };
@@ -55,6 +59,8 @@ export default function Dashboard({
   subcompanyOptions = [],
   selectedSubcompany = 'all',
   onSubcompanyChange,
+  onSelectProject,
+  onSelectState,
 }: DashboardProps) {
   const { partner, user } = useAuth();
   const { addToast } = useToast();
@@ -72,9 +78,34 @@ export default function Dashboard({
     projects_active: { current: 0, target: 0 },
   });
   const [selectedProjectGroup, setSelectedProjectGroup] = useState('all');
-  const [modalFilters, setModalFilters] = useState<{ status?: 'active' | 'completed'; state?: string; location?: string }>({});
-  const [modalMode, setModalMode] = useState<'projects' | 'state-selector' | 'location-selector'>('projects');
+  const [modalFilters, setModalFilters] = useState<{ status?: 'active' | 'completed'; state?: string; location?: string; subcompany?: string }>({});
+  const [modalMode, setModalMode] = useState<'projects' | 'state-selector' | 'location-selector' | 'group-selector' | 'budget-group-selector' | 'budget-projects'>('projects');
+  const [showBudgetModal, setShowBudgetModal] = useState(false);
+  const [modalGroupProjectName, setModalGroupProjectName] = useState<string | null>(null);
+  const [budgetModalGroupProjectName, setBudgetModalGroupProjectName] = useState<string | null>(null);
   const canEditMetrics = Boolean(onUpdateProject && user?.role !== 'client');
+
+  const handleProjectGroupChange = (projectId: string) => {
+    setSelectedProjectGroup(projectId);
+    if (projectId === 'all') {
+      onSelectProject?.(null);
+      return;
+    }
+    onSelectProject?.(projectId);
+  };
+
+  const handleStateChange = (state: string) => {
+    setSelectedState(state);
+    onSelectState?.(state);
+  };
+
+  const handleModalSubcompanyChange = (value: string) => {
+    setModalFilters((prev) => ({
+      ...prev,
+      subcompany: value === 'all' ? undefined : value,
+    }));
+    // Keep the group selection when changing subcompany filter
+  };
 
   const states = useMemo(() => {
     if (!partner) return [] as string[];
@@ -103,17 +134,26 @@ export default function Dashboard({
     setSelectedProjectGroup(selectedProject ?? 'all');
   }, [selectedProject]);
 
-  const modalProjects = useMemo(() => {
+  const modalBaseProjects = useMemo(() => {
     return projects.filter((project) => {
       if (modalFilters.status && project.status !== modalFilters.status) return false;
       if (modalFilters.state && project.state !== modalFilters.state) return false;
       if (modalFilters.location && project.location !== modalFilters.location) return false;
+      if (modalFilters.subcompany && project.toll_id !== modalFilters.subcompany) return false;
       return true;
     });
   }, [projects, modalFilters]);
 
+  const modalProjects = useMemo(() => {
+    if (!modalGroupProjectName) return modalBaseProjects;
+    return modalBaseProjects.filter((project) => matchesGroupProject(project, modalGroupProjectName, projects));
+  }, [modalBaseProjects, modalGroupProjectName, projects]);
+
   const filteredProjects = useMemo(() => {
     let result = projects;
+    if (selectedSubcompany !== 'all') {
+      result = result.filter((project) => project.toll_id === selectedSubcompany);
+    }
     if (selectedProjectGroup !== 'all') {
       result = result.filter((project) => project.id === selectedProjectGroup);
     }
@@ -121,7 +161,7 @@ export default function Dashboard({
       result = result.filter(p => p.state === selectedState);
     }
     return result;
-  }, [projects, selectedProjectGroup, selectedState]);
+  }, [projects, selectedProjectGroup, selectedState, selectedSubcompany]);
 
   const visibleProjectIds = useMemo(() => filteredProjects.map(p => p.id), [filteredProjects]);
 
@@ -132,6 +172,16 @@ export default function Dashboard({
     const uniqueLocations = new Set(filteredProjects.map(p => p.location).filter(Boolean)).size;
     return { total: filteredProjects.length, active, completed, states: uniqueStates, locations: uniqueLocations };
   }, [filteredProjects]);
+
+  const budgetBaseProjects = useMemo(() => {
+    if (!modalFilters.subcompany) return filteredProjects;
+    return filteredProjects.filter((project) => project.toll_id === modalFilters.subcompany);
+  }, [filteredProjects, modalFilters.subcompany]);
+
+  const budgetModalProjects = useMemo(() => {
+    if (!budgetModalGroupProjectName) return budgetBaseProjects;
+    return budgetBaseProjects.filter((project) => matchesGroupProject(project, budgetModalGroupProjectName, projects));
+  }, [budgetBaseProjects, budgetModalGroupProjectName, projects]);
 
   const budgetData = useMemo(() => {
     const partnerProjects = filteredProjects.filter((project) => project.csr_partner_id === partner?.id);
@@ -224,10 +274,24 @@ export default function Dashboard({
     return label.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
   };
 
-  const openModalWithFilters = (filters: { status?: 'active' | 'completed'; state?: string; location?: string }, mode: 'projects' | 'state-selector' | 'location-selector' = 'projects') => {
+  const openModalWithFilters = (
+    filters: { status?: 'active' | 'completed'; state?: string; location?: string; subcompany?: string } = {},
+    mode: 'projects' | 'state-selector' | 'location-selector' | 'group-selector' | 'budget-group-selector' = 'projects'
+  ) => {
     setModalFilters(filters);
     setModalMode(mode);
+    setModalGroupProjectName(null);
     setShowProjectOverview(true);
+  };
+
+  const openBudgetModal = (
+    mode: 'budget-group-selector' | 'budget-projects' = 'budget-group-selector',
+    filters: { subcompany?: string } = {}
+  ) => {
+    setModalFilters(filters);
+    setModalMode(mode);
+    setBudgetModalGroupProjectName(null);
+    setShowBudgetModal(true);
   };
 
   const sanitizeBudgetValue = (value?: number) => (typeof value === 'number' && Number.isFinite(value) ? value : 0);
@@ -310,10 +374,10 @@ export default function Dashboard({
           brandColors={brandColors ?? undefined}
           projectGroupOptions={projectGroupOptions}
           selectedProjectGroup={selectedProjectGroup}
-          onProjectGroupChange={setSelectedProjectGroup}
+          onProjectGroupChange={handleProjectGroupChange}
           states={states}
           selectedState={selectedState}
-          onStateChange={setSelectedState}
+          onStateChange={handleStateChange}
           subcompanyOptions={subcompanyOptions}
           selectedSubcompany={selectedSubcompany}
           onSubcompanyChange={onSubcompanyChange}
@@ -324,6 +388,7 @@ export default function Dashboard({
           if (!open) {
             setModalFilters({});
             setModalMode('projects');
+            setModalGroupProjectName(null);
           }
         }}>
           <DialogContent className="max-w-4xl max-h-[80vh]">
@@ -331,30 +396,68 @@ export default function Dashboard({
               <DialogTitle>
                 {modalMode === 'state-selector' ? 'Select State' : 
                  modalMode === 'location-selector' ? 'Select Location' : 
+                 modalMode === 'group-selector' ? 'Select Project Group' :
                  'Project Overview'}
               </DialogTitle>
               <DialogDescription>
                 {modalMode === 'state-selector' ? 'Choose a state to view its projects' :
                  modalMode === 'location-selector' ? 'Choose a location to view its projects' :
+                 modalMode === 'group-selector' ? 'Choose a project to view its sub-projects' :
                  `Overview of ${modalProjects.length} project${modalProjects.length === 1 ? '' : 's'} matching the selected filters.`}
               </DialogDescription>
             </DialogHeader>
 
+            {subcompanyOptions.length > 0 && (
+              <div className="flex flex-wrap items-center gap-4 pb-4 border-b border-border">
+                <div className="space-y-1">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Subcompany</p>
+                  <Select value={modalFilters.subcompany ?? 'all'} onValueChange={handleModalSubcompanyChange}>
+                    <SelectTrigger className="w-[220px] border-2 rounded-xl">
+                      <SelectValue placeholder="All Subcompanies" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Subcompanies</SelectItem>
+                      {subcompanyOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {modalFilters.subcompany && (
+                  <Badge variant="outline" className="bg-muted/60 border-dashed">
+                    {subcompanyLabelMap.get(modalFilters.subcompany) || 'Selected Subcompany'}
+                  </Badge>
+                )}
+              </div>
+            )}
+
             {modalMode === 'state-selector' ? (
               <StateLocationSelector
-                projects={projects}
+                projects={modalBaseProjects}
                 type="state"
                 onSelect={(state) => {
-                  setModalFilters({ state });
-                  setModalMode('projects');
+                  setModalFilters((prev) => ({ ...prev, state }));
+                  setModalMode('group-selector');
+                  setModalGroupProjectName(null);
                 }}
               />
             ) : modalMode === 'location-selector' ? (
               <StateLocationSelector
-                projects={projects}
+                projects={modalBaseProjects}
                 type="location"
                 onSelect={(location) => {
-                  setModalFilters({ location });
+                  setModalFilters((prev) => ({ ...prev, location }));
+                  setModalMode('group-selector');
+                  setModalGroupProjectName(null);
+                }}
+              />
+            ) : modalMode === 'group-selector' ? (
+              <GroupedProjectSelector
+                projects={modalBaseProjects}
+                onSelectGroup={(group: GroupedProject) => {
+                  setModalGroupProjectName(group.name);
                   setModalMode('projects');
                 }}
               />
@@ -376,14 +479,14 @@ export default function Dashboard({
                       role="button"
                       tabIndex={0}
                       onClick={() => {
-                        setSelectedProjectGroup(project.id);
+                        handleProjectGroupChange(project.id);
                         setShowProjectOverview(false);
                         setModalFilters({});
                       }}
                       onKeyDown={(event) => {
                         if (event.key === 'Enter' || event.key === ' ') {
                           event.preventDefault();
-                          setSelectedProjectGroup(project.id);
+                          handleProjectGroupChange(project.id);
                           setShowProjectOverview(false);
                           setModalFilters({});
                         }
@@ -462,6 +565,108 @@ export default function Dashboard({
           </DialogContent>
         </Dialog>
 
+        {/* Budget Modal */}
+        <Dialog open={showBudgetModal} onOpenChange={(open) => {
+          setShowBudgetModal(open);
+          if (!open) {
+            setModalFilters({});
+            setModalMode('budget-group-selector');
+            setBudgetModalGroupProjectName(null);
+          }
+        }}>
+          <DialogContent className="max-w-4xl max-h-[80vh]">
+            <DialogHeader>
+              <DialogTitle>
+                {modalMode === 'budget-group-selector' ? 'Budget Overview by Project' : 'Project Budget Details'}
+              </DialogTitle>
+              <DialogDescription>
+                {modalMode === 'budget-group-selector' 
+                  ? 'Select a project to view detailed budget breakdown' 
+                  : `Budget details for ${budgetModalProjects.length} project${budgetModalProjects.length === 1 ? '' : 's'}`}
+              </DialogDescription>
+            </DialogHeader>
+
+            {modalMode === 'budget-group-selector' ? (
+              <GroupedProjectSelector
+                projects={budgetBaseProjects}
+                type="budget"
+                onSelectGroup={(group: GroupedProject) => {
+                  setBudgetModalGroupProjectName(group.name);
+                  setModalMode('budget-projects');
+                }}
+              />
+            ) : (
+              <ScrollArea className="max-h-[60vh] pr-4">
+                <div className="space-y-4">
+                  {budgetModalProjects.map((project) => {
+                    const totalBudget = sanitizeBudgetValue(project.total_budget);
+                    const utilizedBudget = sanitizeBudgetValue(project.utilized_budget);
+                    const remainingBudget = Math.max(totalBudget - utilizedBudget, 0);
+                    const percentage = totalBudget > 0 ? (utilizedBudget / totalBudget) * 100 : 0;
+                    const locationLabel = project.location || project.state || 'Location unknown';
+                    
+                    return (
+                      <div
+                        key={project.id}
+                        className="bg-card rounded-2xl border border-border p-4 shadow-sm"
+                      >
+                        <div className="flex items-center justify-between gap-4 mb-4">
+                          <div>
+                            <p className="text-lg font-bold text-foreground">{project.name || 'Unnamed Project'}</p>
+                            <p className="text-xs text-muted-foreground flex items-center gap-1">
+                              <span>📍</span>
+                              <span>{locationLabel}</span>
+                            </p>
+                          </div>
+                          {project.toll_id && (
+                            <Badge variant="outline" className="bg-muted/60 border-dashed text-[11px]">
+                              {subcompanyLabelMap.get(project.toll_id) || 'Subcompany'}
+                            </Badge>
+                          )}
+                        </div>
+                        
+                        <div className="grid grid-cols-3 gap-3">
+                          <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/30">
+                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Total Budget</p>
+                            <p className="text-xl font-bold text-blue-600">{formatCurrency(totalBudget)}</p>
+                          </div>
+                          <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30">
+                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Utilized</p>
+                            <p className="text-xl font-bold text-emerald-600">{formatCurrency(utilizedBudget)}</p>
+                          </div>
+                          <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30">
+                            <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Remaining</p>
+                            <p className="text-xl font-bold text-amber-600">{formatCurrency(remainingBudget)}</p>
+                          </div>
+                        </div>
+                        
+                        <div className="mt-4">
+                          <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
+                            <span>Budget Utilization</span>
+                            <span className="font-semibold">{percentage.toFixed(1)}%</span>
+                          </div>
+                          <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all"
+                              style={{ width: `${Math.min(percentage, 100)}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            )}
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowBudgetModal(false)}>
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {isEmpty ? (
           <Card className="p-12 text-center">
             <div className="text-5xl mb-4">📊</div>
@@ -511,15 +716,30 @@ export default function Dashboard({
                     </div>
 
                     <div className="flex-1 space-y-3">
-                      <div className="flex items-center justify-between p-3 rounded-xl bg-blue-50 dark:bg-blue-950/30">
+                      <div 
+                        className="flex items-center justify-between p-3 rounded-xl bg-blue-50 dark:bg-blue-950/30 cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-950/50 transition-colors"
+                        onClick={() => openBudgetModal('budget-group-selector')}
+                        role="button"
+                        tabIndex={0}
+                      >
                         <span className="text-sm text-muted-foreground">Total Budget</span>
                         <span className="text-lg font-bold text-blue-600">{formatCurrency(budgetData.total)}</span>
                       </div>
-                      <div className="flex items-center justify-between p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30">
+                      <div 
+                        className="flex items-center justify-between p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 cursor-pointer hover:bg-emerald-100 dark:hover:bg-emerald-950/50 transition-colors"
+                        onClick={() => openBudgetModal('budget-group-selector')}
+                        role="button"
+                        tabIndex={0}
+                      >
                         <span className="text-sm text-muted-foreground">Utilized</span>
                         <span className="text-lg font-bold text-emerald-600">{formatCurrency(budgetData.utilized)}</span>
                       </div>
-                      <div className="flex items-center justify-between p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30">
+                      <div 
+                        className="flex items-center justify-between p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-950/50 transition-colors"
+                        onClick={() => openBudgetModal('budget-group-selector')}
+                        role="button"
+                        tabIndex={0}
+                      >
                         <span className="text-sm text-muted-foreground">Remaining</span>
                         <span className="text-lg font-bold text-amber-600">{formatCurrency(budgetData.remaining)}</span>
                       </div>
@@ -532,8 +752,8 @@ export default function Dashboard({
               <Card>
                 <CardHeader className="pb-2">
                   <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-xl bg-violet-100 dark:bg-violet-950/30 flex items-center justify-center">
-                        <Target className="w-6 h-6 text-violet-600" />
+                      <div className="w-12 h-12 rounded-xl bg-cyan-100 dark:bg-cyan-950/30 flex items-center justify-center">
+                        <Target className="w-6 h-6 text-cyan-600" />
                       </div>
                       <div>
                         <CardTitle className="text-lg">Projects Overview</CardTitle>
@@ -547,14 +767,14 @@ export default function Dashboard({
                         className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 text-center cursor-pointer hover:bg-emerald-100 dark:hover:bg-emerald-950/50 transition-colors"
                         onClick={(e) => {
                           e.stopPropagation();
-                          openModalWithFilters({ status: 'active' });
+                          openModalWithFilters({ status: 'active' }, 'group-selector');
                         }}
                         role="button"
                         tabIndex={0}
                         onKeyDown={(event) => {
                           if (event.key === 'Enter' || event.key === ' ') {
                             event.preventDefault();
-                            openModalWithFilters({ status: 'active' });
+                            openModalWithFilters({ status: 'active' }, 'group-selector');
                           }
                         }}
                       >
@@ -565,14 +785,14 @@ export default function Dashboard({
                         className="p-4 rounded-xl bg-blue-50 dark:bg-blue-950/30 text-center cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-950/50 transition-colors"
                         onClick={(e) => {
                           e.stopPropagation();
-                          openModalWithFilters({ status: 'completed' });
+                          openModalWithFilters({ status: 'completed' }, 'group-selector');
                         }}
                         role="button"
                         tabIndex={0}
                         onKeyDown={(event) => {
                           if (event.key === 'Enter' || event.key === ' ') {
                             event.preventDefault();
-                            openModalWithFilters({ status: 'completed' });
+                            openModalWithFilters({ status: 'completed' }, 'group-selector');
                           }
                         }}
                       >
@@ -627,8 +847,8 @@ export default function Dashboard({
               <Card className="lg:col-span-2">
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-pink-100 dark:bg-pink-950/30 flex items-center justify-center">
-                      <Image className="w-5 h-5 text-pink-600" />
+                    <div className="w-10 h-10 rounded-xl bg-sky-100 dark:bg-sky-950/30 flex items-center justify-center">
+                      <Image className="w-5 h-5 text-sky-600" />
                     </div>
                     <CardTitle className="text-base">{allMedia.length} items</CardTitle>
                   </div>
@@ -659,7 +879,7 @@ export default function Dashboard({
                                   allowFullScreen
                                 />
                               ) : (
-                                <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-pink-100 to-purple-100 dark:from-pink-950/30 dark:to-purple-950/30">
+                                <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-sky-100 to-cyan-100 dark:from-sky-950/30 dark:to-cyan-950/30">
                                   <Image className="w-16 h-16 text-muted-foreground mb-3" />
                                   <p className="text-sm font-medium text-muted-foreground">{media.title}</p>
                                 </div>
@@ -724,7 +944,7 @@ export default function Dashboard({
                             indicatorClassName={
                               activity.completion_percentage >= 100
                                 ? 'bg-gradient-to-r from-emerald-500 to-emerald-600'
-                                : 'bg-gradient-to-r from-purple-500 to-fuchsia-500'
+                                : 'bg-gradient-to-r from-teal-500 to-cyan-500'
                             }
                           />
                         </div>

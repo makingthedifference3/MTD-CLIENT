@@ -657,7 +657,6 @@ CREATE TABLE public.project_expenses (
   csr_partner_id uuid,
   toll_id uuid,
   budget_category_id uuid,
-  sub_sub-category uuid,
   CONSTRAINT project_expenses_pkey PRIMARY KEY (id),
   CONSTRAINT project_expenses_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id),
   CONSTRAINT project_expenses_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.expense_categories(id),
@@ -767,6 +766,7 @@ CREATE TABLE public.projects (
   schools_renovated integer DEFAULT 0,
   beneficiary_type character varying,
   beneficiary_name character varying,
+  uc_link text,
   CONSTRAINT projects_pkey PRIMARY KEY (id),
   CONSTRAINT projects_csr_partner_id_fkey FOREIGN KEY (csr_partner_id) REFERENCES public.csr_partners(id),
   CONSTRAINT projects_project_manager_id_fkey FOREIGN KEY (project_manager_id) REFERENCES public.users(id),
@@ -825,6 +825,15 @@ CREATE TABLE public.real_time_updates (
   CONSTRAINT real_time_updates_timeline_id_fkey FOREIGN KEY (timeline_id) REFERENCES public.timelines(id),
   CONSTRAINT real_time_updates_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id),
   CONSTRAINT real_time_updates_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.receipt_views (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id text NOT NULL,
+  expense_id uuid NOT NULL,
+  viewed_at timestamp with time zone DEFAULT now(),
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT receipt_views_pkey PRIMARY KEY (id),
+  CONSTRAINT receipt_views_expense_id_fkey FOREIGN KEY (expense_id) REFERENCES public.project_expenses(id)
 );
 CREATE TABLE public.reports (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -939,6 +948,15 @@ CREATE TABLE public.task_time_logs (
   CONSTRAINT task_time_logs_pkey PRIMARY KEY (id),
   CONSTRAINT task_time_logs_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.tasks(id),
   CONSTRAINT task_time_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.task_views (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id text NOT NULL,
+  task_id uuid NOT NULL,
+  viewed_at timestamp with time zone DEFAULT now(),
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT task_views_pkey PRIMARY KEY (id),
+  CONSTRAINT task_views_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.tasks(id)
 );
 CREATE TABLE public.tasks (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

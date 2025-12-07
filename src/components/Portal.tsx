@@ -390,6 +390,7 @@ export default function Portal() {
                 subcompanyOptions={subcompanyOptions}
                 selectedSubcompany={selectedSubcompany}
                 onSubcompanyChange={subcompanyChangeHandler}
+                onSelectProject={setSelectedProject}
               />
             )}
             {currentView === 'timelines' && (
