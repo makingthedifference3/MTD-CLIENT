@@ -111,6 +111,8 @@ interface MediaArticleRow {
   event_date?: string | null;
   is_featured?: boolean | null;
   is_downloadable?: boolean | null;
+  update_id?: string | null;
+  update_title?: string | null;
 }
 
 const toISODate = (input?: string | null) => {
@@ -304,48 +306,45 @@ export const splitMediaArticles = (rows: MediaArticleRow[]): {
     if (!row.id || !row.project_id) return;
 
     const mediaType = row.media_type?.toLowerCase();
-    const driveLink = row.drive_link ?? row.drive_folder_link ?? row.article_url ?? '';
     const baseDate = toISODate(row.captured_at ?? row.event_date ?? row.date);
     const title = safeString(row.title, 'Media Asset');
 
-    if (mediaType === 'photo' || mediaType === 'image') {
-      media.push({
-        id: row.id,
-        project_id: row.project_id,
-        title,
-      impact_metrics: row.impact_metrics ?? undefined,
-        date: baseDate,
-        is_geo_tagged: Boolean(row.is_geo_tagged),
-        drive_link: driveLink,
-        news_channel: row.news_channel ?? undefined,
-      });
-    } else if (mediaType === 'video') {
-      media.push({
-        id: row.id,
-        project_id: row.project_id,
-        title,
-        type: 'video',
-        date: baseDate,
-        is_geo_tagged: Boolean(row.is_geo_tagged),
-        drive_link: driveLink,
-        news_channel: row.news_channel ?? undefined,
-      });
-    }
-
-    const looksLikeArticle = mediaType === 'newspaper_cutting'
+    // Articles: newspaper_cutting, article, document, report, pdf, certificate
+    const isArticleType = mediaType === 'newspaper_cutting'
       || mediaType === 'article'
       || mediaType === 'document'
       || mediaType === 'report'
-      || (row.category?.toLowerCase().includes('article') ?? false);
+      || mediaType === 'pdf'
+      || mediaType === 'certificate';
 
-    if (looksLikeArticle) {
+    // Media: photo, image, video only
+    const isMediaType = mediaType === 'photo' || mediaType === 'image' || mediaType === 'video';
+
+    if (isMediaType) {
+      media.push({
+        id: row.id,
+        project_id: row.project_id,
+        title,
+        type: mediaType === 'video' ? 'video' : 'photo',
+        date: baseDate,
+        is_geo_tagged: Boolean(row.is_geo_tagged),
+        drive_link: row.drive_link || row.drive_folder_link || '',
+        news_channel: row.news_channel ?? undefined,
+        update_id: row.update_id ?? undefined,
+        update_title: row.update_title ?? undefined,
+      });
+    }
+
+    if (isArticleType) {
       articles.push({
         id: row.id,
         project_id: row.project_id,
         title,
         date: baseDate,
         is_featured: Boolean(row.is_featured),
-        drive_link: driveLink,
+        drive_link: row.article_url || row.drive_link || '',
+        update_id: row.update_id ?? undefined,
+        update_title: row.update_title ?? undefined,
       });
     }
   });

@@ -103,6 +103,8 @@ export interface ProjectActivity {
   updated_at?: string;
   // Joined fields
   project_name?: string;
+  update_id?: string;
+  update_title?: string;
   items?: ProjectActivityItem[];
 }
 
@@ -156,6 +158,8 @@ export interface Media {
   is_geo_tagged: boolean;
   drive_link: string;
   news_channel?: string;
+  update_id?: string;
+  update_title?: string;
 }
 
 export interface Article {
@@ -165,4 +169,6 @@ export interface Article {
   date: string;
   is_featured: boolean;
   drive_link: string;
+  update_id?: string;
+  update_title?: string;
 }

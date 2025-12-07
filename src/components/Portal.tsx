@@ -45,9 +45,14 @@ interface PartnerCollections {
 
 export default function Portal() {
   const { user, partner, logout } = useAuth();
-  const [currentView, setCurrentView] = useState('dashboard');
-  const [selectedProject, setSelectedProject] = useState<string | null>(null);
-  const [showProjectList, setShowProjectList] = useState(false);
+  const [currentView, setCurrentView] = useState(() => {
+    const savedView = localStorage.getItem('portal-current-view');
+    return savedView || 'dashboard';
+  });
+  const [selectedProject, setSelectedProject] = useState<string | null>(() => {
+    const savedProject = localStorage.getItem('portal-selected-project');
+    return savedProject || null;
+  });
   const [dataLoading, setDataLoading] = useState(false);
   const [dataError, setDataError] = useState<string | null>(null);
   const [tolls, setTolls] = useState<Toll[]>([]);
@@ -119,7 +124,10 @@ export default function Portal() {
             `).in('project_id', projectIds).eq('is_active', true),
             supabase.from('reports').select('*').in('project_id', projectIds),
             supabase.from('real_time_updates').select('*').in('project_id', projectIds),
-            supabase.from('media_articles').select('*').in('project_id', projectIds),
+            supabase.from('media_articles').select(`
+              *,
+              update:update_id (title)
+            `).in('project_id', projectIds),
           ]);
 
           if (timelineRes.error) throw timelineRes.error;
@@ -161,7 +169,13 @@ export default function Portal() {
 
           mappedReports = mapReports(reportsRes.data ?? []);
           mappedUpdates = mapUpdates(updatesRes.data ?? []);
-          const mediaSplit = splitMediaArticles(mediaRes.data ?? []);
+          
+          // Map media with update titles from joined data
+          const mediaWithUpdateTitles = (mediaRes.data ?? []).map((m: any) => ({
+            ...m,
+            update_title: m.update?.title || null,
+          }));
+          const mediaSplit = splitMediaArticles(mediaWithUpdateTitles);
           mediaPhotos = mediaSplit.media.filter((asset) => asset.type === 'photo');
           mediaVideos = mediaSplit.media.filter((asset) => asset.type === 'video');
           mappedArticles = mediaSplit.articles;
@@ -222,18 +236,7 @@ export default function Portal() {
 
   function handleViewChange(view: string) {
     setCurrentView(view);
-    if (view !== 'projects') {
-      setShowProjectList(false);
-    }
-  }
-
-  function handleProjectSelect(projectId: string) {
-    setSelectedProject(selectedProject === projectId ? null : projectId);
-    setCurrentView('dashboard');
-  }
-
-  function handleToggleProjectList() {
-    setShowProjectList((prev) => !prev);
+    localStorage.setItem('portal-current-view', view);
   }
 
   const filteredBySubcompany = useMemo(() => {
@@ -317,11 +320,9 @@ export default function Portal() {
       <Sidebar
         currentView={currentView}
         onViewChange={handleViewChange}
-        selectedProject={selectedProject}
-        projects={visibleProjects}
-        onProjectSelect={handleProjectSelect}
-        showProjectList={showProjectList}
-        onToggleProjectList={handleToggleProjectList}
+        subcompanyOptions={subcompanyOptions}
+        selectedSubcompany={selectedSubcompany}
+        onSubcompanyChange={subcompanyChangeHandler}
       />
 
       <div className="flex-1 flex flex-col overflow-hidden">

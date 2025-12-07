@@ -133,7 +133,9 @@ export default function Article({
                   </div>
 
                   <div className="space-y-3">
-                    {group.items.map((article) => (
+                    {group.items.map((article) => {
+                      const displayTitle = article.update_title || article.title;
+                      return (
                       <div
                         key={article.id}
                         onClick={() => handlePreview({ ...article, kind: 'article' })}
@@ -143,7 +145,7 @@ export default function Article({
                       >
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold text-foreground group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">
-                            {article.title} - {new Date(article.date).toLocaleDateString('en-GB')}
+                            {displayTitle} - {new Date(article.date).toLocaleDateString('en-GB')}
                           </p>
                         </div>
 
@@ -167,7 +169,7 @@ export default function Article({
                           </Button>
                         </div>
                       </div>
-                    ))}
+                    );})}
                   </div>
                 </div>
               ))}
@@ -192,7 +194,9 @@ export default function Article({
                   </div>
 
                   <div className="space-y-3">
-                    {group.items.map((video) => (
+                    {group.items.map((video) => {
+                      const displayTitle = video.update_title || video.title;
+                      return (
                       <div
                         key={video.id}
                         onClick={() => handlePreview({ ...video, kind: 'video' })}
@@ -202,7 +206,7 @@ export default function Article({
                       >
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold text-foreground group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
-                            {video.title} - {new Date(video.date).toLocaleDateString('en-GB')}
+                            {displayTitle} - {new Date(video.date).toLocaleDateString('en-GB')}
                           </p>
                         </div>
 
@@ -226,7 +230,7 @@ export default function Article({
                           </Button>
                         </div>
                       </div>
-                    ))}
+                    );})}
                   </div>
                 </div>
               ))}
@@ -272,7 +276,7 @@ export default function Article({
                     <div className="aspect-video bg-black/5 dark:bg-black/40">
                       <iframe
                         src={previewItem.drive_link}
-                        title={previewItem.title}
+                        title={previewItem.update_title || previewItem.title}
                         className="h-full w-full"
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                         allowFullScreen

@@ -865,15 +865,17 @@ export default function Dashboard({
                       </div>
                     </div>
                   ) : (
-                    <Carousel className="w-full">
-                      <CarouselContent>
-                        {allMedia.map((media, index) => (
+                    <Carousel className="w-full overflow-hidden" opts={{ watchDrag: false }} onWheel={(event) => event.preventDefault()}>
+                      <CarouselContent className="overflow-hidden">
+                        {allMedia.map((media, index) => {
+                          const displayTitle = media.update_title || media.title;
+                          return (
                           <CarouselItem key={index}>
                             <div className="aspect-video rounded-xl overflow-hidden bg-muted">
                               {media.drive_link ? (
                                 <iframe
                                   src={media.drive_link}
-                                  title={media.title}
+                                  title={displayTitle}
                                   className="w-full h-full border-0"
                                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                   allowFullScreen
@@ -881,12 +883,12 @@ export default function Dashboard({
                               ) : (
                                 <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-sky-100 to-cyan-100 dark:from-sky-950/30 dark:to-cyan-950/30">
                                   <Image className="w-16 h-16 text-muted-foreground mb-3" />
-                                  <p className="text-sm font-medium text-muted-foreground">{media.title}</p>
+                                  <p className="text-sm font-medium text-muted-foreground">{displayTitle}</p>
                                 </div>
                               )}
                             </div>
                           </CarouselItem>
-                        ))}
+                        );})}
                       </CarouselContent>
                       {allMedia.length > 1 && (
                         <>
@@ -919,12 +921,28 @@ export default function Dashboard({
                       const activityProjectLabel = activityProject
                         ? formatProjectLabel(activityProject)
                         : 'Project info unavailable';
+                      const projectState = activityProject?.state;
                       return (
                         <div key={activity.id} className="p-3 rounded-xl bg-muted/50 space-y-2">
                           <div className="flex items-start justify-between gap-3">
-                            <div className="flex-1">
-                              <p className="font-medium text-sm text-foreground truncate">{activity.title}</p>
-                              <p className="text-xs text-muted-foreground">{activityProjectLabel}</p>
+                            <div className="flex-1 space-y-1">
+                              <button
+                                onClick={() => {
+                                  if (activityProject) {
+                                    onSelectProject?.(activityProject.id);
+                                    localStorage.setItem('portal-selected-project', activityProject.id);
+                                    onNavigate?.('timelines');
+                                    localStorage.setItem('portal-current-view', 'timelines');
+                                  }
+                                }}
+                                className="font-medium text-sm text-foreground truncate hover:text-primary hover:underline transition-colors text-left"
+                              >
+                                {activityProjectLabel}
+                              </button>
+                              {/* <p className="text-xs text-muted-foreground">{activity.section || 'Activity'}</p> */}
+                              {projectState && (
+                                <p className="text-xs text-muted-foreground">{projectState}</p>
+                              )}
                             </div>
                             <Badge 
                               variant={activity.completion_percentage >= 100 ? 'default' : 'secondary'} 

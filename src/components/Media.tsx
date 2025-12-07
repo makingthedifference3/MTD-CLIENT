@@ -249,7 +249,7 @@ export default function Media({
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2 text-xl">
                     {selectedMedia.is_geo_tagged ? '📍' : selectedMedia.type === 'video' ? '🎬' : '📷'}
-                    {selectedMedia.title}
+                    {selectedMedia.update_title || selectedMedia.title}
                   </DialogTitle>
                   <DialogDescription>
                     {(projectLookup[selectedMedia.project_id]?.name || 'Project media')} •{' '}
@@ -262,7 +262,7 @@ export default function Media({
                     <div className="aspect-video bg-black/5 dark:bg-black/40">
                       <iframe
                         src={selectedMedia.drive_link}
-                        title={selectedMedia.title}
+                        title={selectedMedia.update_title || selectedMedia.title}
                         className="h-full w-full"
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                         allowFullScreen

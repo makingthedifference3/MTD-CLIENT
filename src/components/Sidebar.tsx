@@ -1,29 +1,31 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Home, FolderKanban, Clock, FileText, FileBarChart, Image, Newspaper, ChevronRight, LogOut } from 'lucide-react';
+import { Home, Clock, FileText, FileBarChart, Image, Newspaper, ChevronDown, LogOut, Building2 } from 'lucide-react';
 import CompanyLogo from './CompanyLogo';
+
+interface SubcompanyOption {
+  value: string;
+  label: string;
+}
 
 interface SidebarProps {
   currentView: string;
   onViewChange: (view: string) => void;
-  selectedProject: string | null;
-  projects: Array<{ id: string; name: string; start_date?: string }>;
-  onProjectSelect: (projectId: string) => void;
-  showProjectList: boolean;
-  onToggleProjectList: () => void;
+  subcompanyOptions?: SubcompanyOption[];
+  selectedSubcompany?: string;
+  onSubcompanyChange?: (value: string) => void;
 }
 
 export default function Sidebar({
   currentView,
   onViewChange,
-  selectedProject,
-  projects,
-  onProjectSelect,
-  showProjectList,
-  onToggleProjectList,
+  subcompanyOptions = [],
+  selectedSubcompany = 'all',
+  onSubcompanyChange,
 }: SidebarProps) {
   const { partner, logout } = useAuth();
   const [isExpanded, setIsExpanded] = useState(false);
+  const [showSubcompanyDropdown, setShowSubcompanyDropdown] = useState(false);
   
   // Get shortened company name if too long
   const getShortCompanyName = (fullName: string) => {
@@ -56,13 +58,16 @@ export default function Sidebar({
 
   const menuItems = [
     { id: 'dashboard', label: 'DASHBOARD', icon: Home },
-    { id: 'projects', label: 'PROJECTS', icon: FolderKanban, hasDropdown: true },
     { id: 'timelines', label: 'TIMELINES', icon: Clock },
     { id: 'accounts', label: 'ACCOUNTS', icon: FileBarChart },
     { id: 'reports', label: 'REPORTS', icon: FileText },
     { id: 'media', label: 'MEDIA', icon: Image },
     { id: 'article', label: 'ARTICLE', icon: Newspaper },
   ];
+
+  const selectedSubcompanyLabel = subcompanyOptions.find(o => o.value === selectedSubcompany)?.label || 'All Subcompanies';
+  const dashboardItem = menuItems.find((item) => item.id === 'dashboard');
+  const otherMenuItems = menuItems.filter((item) => item.id !== 'dashboard');
 
   return (
     <div 
@@ -99,20 +104,83 @@ export default function Sidebar({
       </div>
 
       <nav className="flex-1 py-6 px-3 space-y-2 overflow-y-auto scrollbar-hide">
-        {menuItems.map((item) => {
+        {dashboardItem && (
+          <div>
+            <button
+              onClick={() => onViewChange(dashboardItem.id)}
+              className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 group ${
+                currentView === dashboardItem.id
+                  ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20'
+                  : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+              }`}
+            >
+              {(() => {
+                const IconComponent = dashboardItem.icon;
+                return (
+                  <IconComponent
+                    size={24}
+                    className={`flex-shrink-0 transition-transform duration-200 ${currentView === dashboardItem.id ? 'scale-110' : 'group-hover:scale-110'}`}
+                  />
+                );
+              })()}
+              {isExpanded && (
+                <div className="flex-1 overflow-hidden animate-fadeIn">
+                  <span className="font-medium tracking-wide text-sm">{dashboardItem.label}</span>
+                </div>
+              )}
+            </button>
+          </div>
+        )}
+
+        {subcompanyOptions.length > 0 && (
+          <div className="relative">
+            <button
+              onClick={() => setShowSubcompanyDropdown(!showSubcompanyDropdown)}
+              className="w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 text-muted-foreground hover:bg-accent hover:text-accent-foreground group"
+            >
+              <Building2 size={24} className="flex-shrink-0 transition-transform duration-200 group-hover:scale-110" />
+              {isExpanded && (
+                <div className="flex-1 flex items-center justify-between overflow-hidden animate-fadeIn">
+                  <span className="font-medium tracking-wide text-sm truncate">{selectedSubcompanyLabel}</span>
+                  <ChevronDown
+                    size={16}
+                    className={`transition-transform duration-200 ${showSubcompanyDropdown ? 'rotate-180' : ''}`}
+                  />
+                </div>
+              )}
+            </button>
+
+            {showSubcompanyDropdown && isExpanded && (
+              <div className="mt-2 ml-4 pl-4 border-l-2 border-border space-y-1 animate-slideDown">
+                {subcompanyOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => {
+                      onSubcompanyChange?.(option.value);
+                      setShowSubcompanyDropdown(false);
+                    }}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors truncate ${
+                      selectedSubcompany === option.value
+                        ? 'bg-primary/10 text-primary font-medium'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {otherMenuItems.map((item) => {
           const isActive = currentView === item.id;
           const Icon = item.icon;
           
           return (
             <div key={item.id}>
               <button
-                onClick={() => {
-                  if (item.hasDropdown) {
-                    onToggleProjectList();
-                  } else {
-                    onViewChange(item.id);
-                  }
-                }}
+                onClick={() => onViewChange(item.id)}
                 className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 group ${
                   isActive 
                     ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20' 
@@ -124,34 +192,9 @@ export default function Sidebar({
                 {isExpanded && (
                   <div className="flex-1 flex items-center justify-between overflow-hidden animate-fadeIn">
                     <span className="font-medium tracking-wide text-sm">{item.label}</span>
-                    {item.hasDropdown && (
-                      <ChevronRight 
-                        size={16} 
-                        className={`transition-transform duration-200 ${showProjectList ? 'rotate-90' : ''}`}
-                      />
-                    )}
                   </div>
                 )}
               </button>
-
-              {/* Project Dropdown */}
-              {item.hasDropdown && showProjectList && isExpanded && (
-                <div className="mt-2 ml-4 pl-4 border-l-2 border-border space-y-1 animate-slideDown">
-                  {projects.map((project) => (
-                    <button
-                      key={project.id}
-                      onClick={() => onProjectSelect(project.id)}
-                      className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors truncate ${
-                        selectedProject === project.id
-                          ? 'bg-primary/10 text-primary font-medium'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
-                      }`}
-                    >
-                      {project.name}
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
           );
         })}
