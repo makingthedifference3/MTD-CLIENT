@@ -126,9 +126,6 @@ export default function GroupedProjectSelector({ projects, onSelectGroup, type =
                         </button>
                       )}
                       <h3 className="text-lg font-semibold text-foreground">{group.name}</h3>
-                      {hasChildren && (
-                        <Badge className="text-[10px] uppercase tracking-wider">{group.childProjects.length} beneficiaries</Badge>
-                      )}
                     </div>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground">
                       <span>💰 {formatCurrency(group.totalBudget)}</span>
