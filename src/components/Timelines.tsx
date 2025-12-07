@@ -169,6 +169,7 @@ export default function Timelines({
           subcompanyOptions={subcompanyOptions}
           selectedSubcompany={selectedSubcompany}
           onSubcompanyChange={onSubcompanyChange}
+          resetFilters={projectFilters.resetFilters}
         />
 
         {/* Timeline Canvas */}

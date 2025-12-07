@@ -12,6 +12,8 @@ export const formatProjectLabel = (project: Partial<Project>): string => {
 export interface UseProjectFiltersOptions {
   projects: Project[];
   selectedProjectId: string | null;
+  selectedSubcompany?: string;
+  onSubcompanyChange?: (value: string) => void;
 }
 
 export interface UseProjectFiltersResult {
@@ -23,9 +25,10 @@ export interface UseProjectFiltersResult {
   setSelectedProjectGroup: Dispatch<SetStateAction<string>>;
   selectedState: string;
   setSelectedState: Dispatch<SetStateAction<string>>;
+  resetFilters: () => void;
 }
 
-export function useProjectFilters({ projects, selectedProjectId }: UseProjectFiltersOptions): UseProjectFiltersResult {
+export function useProjectFilters({ projects, selectedProjectId, selectedSubcompany, onSubcompanyChange }: UseProjectFiltersOptions): UseProjectFiltersResult {
   const [selectedProjectGroup, setSelectedProjectGroup] = useState('all');
   const [selectedState, setSelectedState] = useState('all');
 
@@ -71,6 +74,14 @@ export function useProjectFilters({ projects, selectedProjectId }: UseProjectFil
 
   const visibleProjectIds = useMemo(() => filteredProjects.map((project) => project.id), [filteredProjects]);
 
+  const resetFilters = () => {
+    setSelectedProjectGroup('all');
+    setSelectedState('all');
+    if (onSubcompanyChange) {
+      onSubcompanyChange('all');
+    }
+  };
+
   return {
     filteredProjects,
     visibleProjectIds,
@@ -80,5 +91,6 @@ export function useProjectFilters({ projects, selectedProjectId }: UseProjectFil
     setSelectedProjectGroup,
     selectedState,
     setSelectedState,
+    resetFilters,
   };
 }

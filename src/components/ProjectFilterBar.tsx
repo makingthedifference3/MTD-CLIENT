@@ -13,6 +13,7 @@ export interface ProjectFilterBarProps {
   subcompanyOptions?: SelectOption[];
   selectedSubcompany?: string;
   onSubcompanyChange?: (value: string) => void;
+  resetFilters?: () => void;
 }
 
 export default function ProjectFilterBar({
@@ -26,6 +27,7 @@ export default function ProjectFilterBar({
   subcompanyOptions = [],
   selectedSubcompany = 'all',
   onSubcompanyChange,
+  resetFilters,
 }: ProjectFilterBarProps) {
   const accent = brandColors?.primary || 'var(--color-emerald-500, #10b981)';
   const selectedProjectOption = projectGroupOptions.find((option) => option.value === selectedProjectGroup);
@@ -98,6 +100,14 @@ export default function ProjectFilterBar({
             <Badge variant="outline" className="bg-muted/60 border-dashed">
               {selectedSubcompany === 'all' ? 'All Subcompanies' : 'Subcompany Selected'}
             </Badge>
+          )}
+          {resetFilters && (
+            <button
+              onClick={resetFilters}
+              className="px-3 py-1.5 rounded-xl bg-red-500 text-white font-semibold text-xs uppercase tracking-wide shadow hover:bg-red-600 transition-colors"
+            >
+              Reset Filters
+            </button>
           )}
         </div>
       </div>

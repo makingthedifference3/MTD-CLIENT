@@ -99,6 +99,16 @@ export default function Dashboard({
     onSelectState?.(state);
   };
 
+  const resetAllFilters = () => {
+    setSelectedProjectGroup('all');
+    setSelectedState('all');
+    onSelectProject?.(null);
+    onSelectState?.('all');
+    if (onSubcompanyChange) {
+      onSubcompanyChange('all');
+    }
+  };
+
   const handleModalSubcompanyChange = (value: string) => {
     setModalFilters((prev) => ({
       ...prev,
@@ -391,6 +401,7 @@ export default function Dashboard({
           subcompanyOptions={subcompanyOptions}
           selectedSubcompany={selectedSubcompany}
           onSubcompanyChange={onSubcompanyChange}
+          resetFilters={resetAllFilters}
         />
 
         <Dialog open={showProjectOverview} onOpenChange={(open) => {

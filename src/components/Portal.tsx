@@ -266,6 +266,8 @@ export default function Portal() {
   const projectFilters = useProjectFilters({
     projects: filteredBySubcompany,
     selectedProjectId: selectedProject,
+    selectedSubcompany,
+    onSubcompanyChange: setSelectedSubcompany,
   });
 
   const subcompanyChangeHandler = subcompanyFilterEnabled ? setSelectedSubcompany : undefined;
