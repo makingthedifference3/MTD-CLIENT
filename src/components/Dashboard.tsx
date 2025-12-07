@@ -216,7 +216,17 @@ export default function Dashboard({
     return media;
   }, [photos, videos, visibleProjectIds]);
 
-  const filteredActivities = useMemo(() => activities.filter(a => visibleProjectIds.includes(a.project_id)).slice(0, 5), [activities, visibleProjectIds]);
+  const filteredActivities = useMemo(() => {
+    const filtered = activities.filter(a => visibleProjectIds.includes(a.project_id));
+    // Get unique projects only - one activity per project
+    const uniqueProjectMap = new Map<string, ProjectActivity>();
+    filtered.forEach(activity => {
+      if (!uniqueProjectMap.has(activity.project_id)) {
+        uniqueProjectMap.set(activity.project_id, activity);
+      }
+    });
+    return Array.from(uniqueProjectMap.values()).slice(0, 5);
+  }, [activities, visibleProjectIds]);
 
   const getMetricTitle = (key: string): string => {
     const titles: Record<string, string> = {

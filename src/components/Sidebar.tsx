@@ -66,8 +66,8 @@ export default function Sidebar({
   ];
 
   const selectedSubcompanyLabel = subcompanyOptions.find(o => o.value === selectedSubcompany)?.label || 'All Subcompanies';
-  const dashboardItem = menuItems.find((item) => item.id === 'dashboard');
-  const otherMenuItems = menuItems.filter((item) => item.id !== 'dashboard');
+  const dashboardItem = menuItems[0];
+  const otherMenuItems = menuItems.slice(1);
 
   return (
     <div 
@@ -78,15 +78,15 @@ export default function Sidebar({
       onMouseLeave={() => setIsExpanded(false)}
     >
       <div 
-        className="p-4 h-[88px] flex items-center border-b"
+        className="px-3 py-3 flex items-center border-b"
       >
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <div className="w-12 h-12 rounded-full overflow-hidden bg-muted flex items-center justify-center flex-shrink-0 border">
             {partner && (
               <CompanyLogo 
                 website={partner.website || ''} 
                 companyName={partner.company_name}
-                size={48}
+                size={42}
               />
             )}
           </div>
@@ -104,34 +104,32 @@ export default function Sidebar({
       </div>
 
       <nav className="flex-1 py-6 px-3 space-y-2 overflow-y-auto scrollbar-hide">
-        {dashboardItem && (
-          <div>
-            <button
-              onClick={() => onViewChange(dashboardItem.id)}
-              className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 group ${
-                currentView === dashboardItem.id
-                  ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20'
-                  : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-              }`}
-            >
-              {(() => {
-                const IconComponent = dashboardItem.icon;
-                return (
-                  <IconComponent
-                    size={24}
-                    className={`flex-shrink-0 transition-transform duration-200 ${currentView === dashboardItem.id ? 'scale-110' : 'group-hover:scale-110'}`}
-                  />
-                );
-              })()}
-              {isExpanded && (
-                <div className="flex-1 overflow-hidden animate-fadeIn">
-                  <span className="font-medium tracking-wide text-sm">{dashboardItem.label}</span>
-                </div>
-              )}
-            </button>
-          </div>
-        )}
-
+        {dashboardItem && (() => {
+          const DashboardIcon = dashboardItem.icon;
+          const isActive = currentView === dashboardItem.id;
+          return (
+            <div key={dashboardItem.id}>
+              <button
+                onClick={() => onViewChange(dashboardItem.id)}
+                className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 group ${
+                  isActive
+                    ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20'
+                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                }`}
+              >
+                <DashboardIcon
+                  size={24}
+                  className={`flex-shrink-0 transition-transform duration-200 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`}
+                />
+                {isExpanded && (
+                  <div className="flex-1 flex items-center justify-between overflow-hidden animate-fadeIn">
+                    <span className="font-medium tracking-wide text-sm">{dashboardItem.label}</span>
+                  </div>
+                )}
+              </button>
+            </div>
+          );
+        })()}
         {subcompanyOptions.length > 0 && (
           <div className="relative">
             <button
@@ -172,23 +170,21 @@ export default function Sidebar({
             )}
           </div>
         )}
-
         {otherMenuItems.map((item) => {
           const isActive = currentView === item.id;
           const Icon = item.icon;
-          
+
           return (
             <div key={item.id}>
               <button
                 onClick={() => onViewChange(item.id)}
                 className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 group ${
-                  isActive 
-                    ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20' 
+                  isActive
+                    ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20'
                     : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                 }`}
               >
                 <Icon size={24} className={`flex-shrink-0 transition-transform duration-200 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`} />
-                
                 {isExpanded && (
                   <div className="flex-1 flex items-center justify-between overflow-hidden animate-fadeIn">
                     <span className="font-medium tracking-wide text-sm">{item.label}</span>

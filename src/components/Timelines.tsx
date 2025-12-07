@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Badge } from './ui/badge';
-import type { ProjectActivity } from '../types/csr';
+import type { Project, ProjectActivity } from '../types/csr';
 import type { SelectOption, UseProjectFiltersResult } from '../lib/projectFilters';
 import { formatProjectLabel } from '../lib/projectFilters';
 import ProjectFilterBar from './ProjectFilterBar';
@@ -72,16 +72,29 @@ export default function Timelines({
     const groups = new Map<string, { projectId: string; projectLabel: string; activities: ProjectActivity[] }>();
     filteredActivities.forEach((activity) => {
       const project = projects.find((p) => p.id === activity.project_id);
-      const projectLabel = project ? formatProjectLabel(project) : 'Unnamed Project';
+      const projectLabel = project ? formatProjectLabel(project as Partial<Project>) : 'Unnamed Project';
       if (!groups.has(activity.project_id)) {
         groups.set(activity.project_id, { projectId: activity.project_id, projectLabel, activities: [] });
       }
       groups.get(activity.project_id)!.activities.push(activity);
     });
-    return Array.from(groups.values()).map((group) => ({
-      ...group,
-      activities: [...group.activities].sort((a, b) => activityTimestamp(a) - activityTimestamp(b))
-    }));
+    return Array.from(groups.values()).map((group) => {
+      const activities = [...group.activities].sort((a, b) => activityTimestamp(a) - activityTimestamp(b));
+      const earliestStartTs = activities.reduce((earliest, activity) => {
+        const start = getActivityStartValue(activity);
+        if (start === null) return earliest;
+        return earliest === null || start < earliest ? start : earliest;
+      }, null as number | null);
+      const formattedDate = earliestStartTs
+        ? new Date(earliestStartTs).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : 'Date unavailable';
+
+      return {
+        ...group,
+        activities,
+        projectDateLabel: formattedDate,
+      };
+    });
   }, [filteredActivities, projects]);
 
   const getActivityBounds = (activity: ProjectActivity) => {
@@ -184,44 +197,42 @@ export default function Timelines({
           ) : filteredActivities.length ? (
             <div className="mt-8 overflow-x-auto">
               <div style={{ minWidth: `${phaseColumnWidth + minTimelineWidth}px` }}>
-                <div className="flex border-b border-border text-muted-foreground text-xs uppercase font-semibold">
-                  <div style={{ width: `${phaseColumnWidth}px` }} className="px-4 py-3">Phase name</div>
-                  <div className="flex flex-1">
-                    {months.map((month) => (
-                      <div key={month} className="flex-1 border-l border-border py-3 text-center">
-                        {month}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {groupedActivities.map((group) => {
+                {groupedActivities.map((group, groupIndex) => {
                   const avgCompletion = group.activities.length
                     ? Math.round(group.activities.reduce((sum: number, t: ProjectActivity) => sum + t.completion_percentage, 0) / group.activities.length)
                     : 0;
 
+                  const sectionBg = groupIndex % 2 === 0 ? 'bg-white' : 'bg-slate-50';
+
                   return (
-                    <div key={group.projectId} className="border-b border-border">
-                      <div className="flex bg-muted/60">
-                        <div style={{ width: `${phaseColumnWidth}px` }} className="px-4 py-3 space-y-1">
-                          <p className="text-base font-semibold text-card-foreground truncate">{group.projectLabel}</p>
-                          {/* <p className="text-xs text-muted-foreground">
-                            {group.activities.length} phase{group.activities.length !== 1 ? 's' : ''}
-                          </p> */}
+                    <div key={group.projectId} className={`border-b border-border ${sectionBg}`}>
+                      <div className="flex border-b border-border text-muted-foreground text-xs uppercase font-semibold">
+                        <div style={{ width: `${phaseColumnWidth}px` }} className="px-4 py-3">Phase name</div>
+                        <div className="flex flex-1">
+                          {months.map((month) => (
+                            <div key={`${group.projectId}-header-${month}`} className="flex-1 border-l border-border py-3 text-center">
+                              {month}
+                            </div>
+                          ))}
                         </div>
-                        <div className="flex-1 px-4 py-3 text-xs text-muted-foreground">
+                      </div>
+
+                      <div className={`flex ${sectionBg} bg-blue-50`}>
+                        <div style={{ width: `${phaseColumnWidth}px` }} className="px-4 py-3 space-y-1 bg-blue-50 rounded-l-2xl">
+                          <p className="text-base font-semibold text-card-foreground truncate">{group.projectLabel}</p>
+                          <p className="text-xs text-muted-foreground">{group.projectDateLabel}</p>
+                        </div>
+                        <div className="flex-1 px-4 py-3 text-xs text-muted-foreground bg-blue-50">
                           Avg completion {avgCompletion}%
                         </div>
                       </div>
 
                       {group.activities.map((activity) => {
                         const { left, width } = getActivityBounds(activity);
-                        const barGradient = activity.completion_percentage === 100
-                          ? 'linear-gradient(90deg, #34d399, #10b981)'
-                          : 'linear-gradient(90deg, #a855f7, #7c3aed)';
+                        const completionWidth = clampPercent((width * activity.completion_percentage) / 100, 0, width);
 
                         return (
-                          <div key={activity.id} className="flex text-muted-foreground text-sm">
+                          <div key={activity.id} className={`flex text-muted-foreground text-sm ${sectionBg}`}>
                             <div style={{ width: `${phaseColumnWidth}px` }} className="px-4 py-4">
                               <p className="font-semibold text-card-foreground">{activity.title}</p>
                               <p className="text-xs text-muted-foreground">{activity.completion_percentage}% complete</p>
@@ -239,13 +250,36 @@ export default function Timelines({
                               })}
 
                               <div
+                                className="absolute top-1/2 -translate-y-1/2 rounded-full"
+                                style={{
+                                  left: `${left}%`,
+                                  width: `${width}%`,
+                                  height: '32px',
+                                  background: 'linear-gradient(90deg, #a855f7, #7c3aed)',
+                                  zIndex: 10,
+                                }}
+                              ></div>
+                              {activity.completion_percentage > 0 && (
+                                <div
+                                  className="absolute top-1/2 -translate-y-1/2 rounded-full"
+                                  style={{
+                                    left: `${left}%`,
+                                    width: `${completionWidth}%`,
+                                    height: '32px',
+                                    background: 'linear-gradient(90deg, #34d399, #10b981)',
+                                    zIndex: 20,
+                                  }}
+                                ></div>
+                              )}
+                              <div
                                 className="absolute top-1/2 -translate-y-1/2 rounded-full shadow-xl text-xs font-semibold text-white flex items-center justify-center"
                                 style={{
                                   left: `${left}%`,
                                   width: `${width}%`,
                                   minWidth: '56px',
                                   height: '32px',
-                                  background: barGradient,
+                                  zIndex: 30,
+                                  pointerEvents: 'none',
                                 }}
                               >
                                 {activity.completion_percentage}%

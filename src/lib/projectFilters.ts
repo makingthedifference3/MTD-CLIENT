@@ -3,7 +3,7 @@ import type { Project } from '../types/csr';
 
 export type SelectOption = { value: string; label: string };
 
-export const formatProjectLabel = (project: Project): string => {
+export const formatProjectLabel = (project: Partial<Project>): string => {
   const name = project.name?.trim() || 'Unnamed Project';
   const location = project.location ? ` • ${project.location}` : '';
   return `${name}${location}`;
