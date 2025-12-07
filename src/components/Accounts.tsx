@@ -172,18 +172,13 @@ export default function Accounts({
     }).sort((a, b) => b.totalBudget - a.totalBudget);
   }, [relevantProjects, getNormalizedBudget, resolveGroupingSource, colorIndexMap]);
 
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set());
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
   const toggleGroup = (key: string) => {
-    setCollapsedGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        next.add(key);
-      }
-      return next;
-    });
+    setCollapsedGroups((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
   };
 
   const groupedProjectBudgetData = useMemo<ProjectGroupSummary[]>(() => {
@@ -415,7 +410,7 @@ export default function Accounts({
               <div className="space-y-6">
                 {groupedProjectBudgetData.map((group) => {
                   const colors = PROJECT_COLORS[group.colorIndex];
-                  const isCollapsed = collapsedGroups.has(group.key);
+                  const isCollapsed = collapsedGroups[group.key] ?? true;
 
                   if (group.projects.length === 1) {
                     return renderProjectCard(group.projects[0]);
@@ -437,11 +432,13 @@ export default function Accounts({
                             <button
                               type="button"
                               onClick={() => toggleGroup(group.key)}
-                              className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground transition-colors"
+                              className="flex items-center text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
                               aria-expanded={!isCollapsed}
                             >
-                              <span aria-hidden="true">{isCollapsed ? '▶' : '▼'}</span>
-                              {isCollapsed ? 'Expand' : 'Collapse'}
+                              <span aria-hidden="true" className="text-lg leading-none">
+                                {isCollapsed ? '▶' : '▼'}
+                              </span>
+                              <span className="sr-only">{isCollapsed ? 'Expand group' : 'Collapse group'}</span>
                             </button>
                           </div>
                         </div>
