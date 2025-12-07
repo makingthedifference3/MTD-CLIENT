@@ -83,6 +83,7 @@ export default function Dashboard({
   const [showBudgetModal, setShowBudgetModal] = useState(false);
   const [modalGroupProjectName, setModalGroupProjectName] = useState<string | null>(null);
   const [budgetModalGroupProjectName, setBudgetModalGroupProjectName] = useState<string | null>(null);
+  const [modalReturnMode, setModalReturnMode] = useState<'state-selector' | 'location-selector' | null>(null);
   const canEditMetrics = Boolean(onUpdateProject && user?.role !== 'client');
 
   const handleProjectGroupChange = (projectId: string) => {
@@ -207,6 +208,12 @@ export default function Dashboard({
     const newMetrics = calculateDashboardMetrics(filteredProjects);
     setMetrics(newMetrics as DashboardMetrics);
   }, [filteredProjects, partner]);
+
+  useEffect(() => {
+    if (modalMode !== 'group-selector') {
+      setModalReturnMode(null);
+    }
+  }, [modalMode]);
 
   const activeMetrics = useMemo(() => {
     const result: Array<{ key: string; current: number; target: number }> = [];
@@ -437,6 +444,7 @@ export default function Dashboard({
             setModalFilters({});
             setModalMode('projects');
             setModalGroupProjectName(null);
+            setModalReturnMode(null);
           }
         }}>
           <DialogContent className="max-w-4xl max-h-[80vh]">
@@ -449,6 +457,21 @@ export default function Dashboard({
                   }}>
                     <ArrowLeft className="w-4 h-4 mr-1" />
                     Back
+                  </Button>
+                )}
+                {modalMode === 'group-selector' && modalReturnMode && (
+                  <Button variant="ghost" size="sm" onClick={() => {
+                    setModalFilters((prev) => ({
+                      ...prev,
+                      state: modalReturnMode === 'state-selector' ? undefined : prev.state,
+                      location: modalReturnMode === 'location-selector' ? undefined : prev.location,
+                    }));
+                    setModalMode(modalReturnMode);
+                    setModalReturnMode(null);
+                    setModalGroupProjectName(null);
+                  }}>
+                    <ArrowLeft className="w-4 h-4 mr-1" />
+                    Back to {modalReturnMode === 'state-selector' ? 'State Selection' : 'Location Selection'}
                   </Button>
                 )}
                 <DialogTitle>
@@ -498,6 +521,7 @@ export default function Dashboard({
                 type="state"
                 onSelect={(state) => {
                   setModalFilters((prev) => ({ ...prev, state }));
+                  setModalReturnMode('state-selector');
                   setModalMode('group-selector');
                   setModalGroupProjectName(null);
                 }}
@@ -508,6 +532,7 @@ export default function Dashboard({
                 type="location"
                 onSelect={(location) => {
                   setModalFilters((prev) => ({ ...prev, location }));
+                  setModalReturnMode('location-selector');
                   setModalMode('group-selector');
                   setModalGroupProjectName(null);
                 }}
