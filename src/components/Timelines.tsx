@@ -203,10 +203,10 @@ export default function Timelines({
                     ? Math.round(group.activities.reduce((sum: number, t: ProjectActivity) => sum + t.completion_percentage, 0) / group.activities.length)
                     : 0;
 
-                  const sectionBg = groupIndex % 2 === 0 ? 'bg-white' : 'bg-slate-50';
+                  const sectionBg = groupIndex % 2 === 0 ? 'bg-white' : 'bg-slate-100';
 
                   return (
-                    <div key={group.projectId} className={`border-b border-border ${sectionBg}`}>
+                    <div key={group.projectId} className={`border-b border-border ${sectionBg} bg-blue-200`}>
                       <div className="flex border-b border-border text-muted-foreground text-xs uppercase font-semibold">
                         <div style={{ width: `${phaseColumnWidth}px` }} className="px-4 py-3">Phase name</div>
                         <div className="flex flex-1">
@@ -218,12 +218,12 @@ export default function Timelines({
                         </div>
                       </div>
 
-                      <div className={`flex ${sectionBg} bg-blue-50`}>
-                        <div style={{ width: `${phaseColumnWidth}px` }} className="px-4 py-3 space-y-1 bg-blue-50 rounded-l-2xl">
+                      <div className={`flex ${sectionBg} `}>
+                        <div style={{ width: `${phaseColumnWidth}px` }} className="px-4 py-3 space-y-1 bg-blue-200 ">
                           <p className="text-base font-semibold text-card-foreground truncate">{group.projectLabel}</p>
                           <p className="text-xs text-muted-foreground">{group.projectDateLabel}</p>
                         </div>
-                        <div className="flex-1 px-4 py-3 text-xs text-muted-foreground bg-blue-50">
+                        <div className="flex-1 px-4 py-3 text-xs text-muted-foreground bg-blue-200">
                           Avg completion {avgCompletion}%
                         </div>
                       </div>

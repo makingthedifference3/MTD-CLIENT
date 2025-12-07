@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { Project } from '../types/csr';
 
 import type { SelectOption, UseProjectFiltersResult } from '../lib/projectFilters';
@@ -15,6 +15,49 @@ const PROJECT_COLORS = [
 ];
 
 const sanitizeBudgetValue = (value?: number) => (typeof value === 'number' && Number.isFinite(value) ? value : 0);
+
+const normalizeGroupKey = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/\b(phase|part|section|batch)\s*\d+/gi, '')
+    .replace(/\([^)]*\)/g, '')
+    .replace(/[^a-z0-9 ]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const deriveGroupLabel = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return 'Miscellaneous Projects';
+  }
+  const segments = trimmed.split(/[-–—_:|]/).map((segment) => segment.trim()).filter(Boolean);
+  return segments[0] || trimmed;
+};
+
+interface ProjectBudgetEntry {
+  id: string;
+  name: string;
+  location: string;
+  state: string;
+  totalBudget: number;
+  utilizedBudget: number;
+  pendingBudget: number;
+  utilizationPercent: number;
+  colorIndex: number;
+  groupKey: string;
+  sourceName: string;
+}
+
+interface ProjectGroupSummary {
+  key: string;
+  label: string;
+  totalBudget: number;
+  utilizedBudget: number;
+  pendingBudget: number;
+  utilizationPercent: number;
+  projects: ProjectBudgetEntry[];
+  colorIndex: number;
+}
 
 interface AccountsProps {
   projects: Array<{ id: string; name: string; state?: string; start_date?: string }>;
@@ -44,6 +87,27 @@ export default function Accounts({
     });
     return map;
   }, [projectData]);
+
+  const resolveGroupingSource = useCallback((project: Project) => {
+    if (project.parent_project_id) {
+      const parentProject = parentProjectMap.get(project.parent_project_id);
+      return parentProject?.name ?? project.name;
+    }
+    return project.name;
+  }, [parentProjectMap]);
+
+  const colorIndexMap = useMemo(() => {
+    const keys = new Set<string>();
+    relevantProjects.forEach((project) => {
+      const sourceName = resolveGroupingSource(project);
+      const normalized = normalizeGroupKey(sourceName) || sourceName.toLowerCase();
+      keys.add(normalized);
+    });
+    const sortedKeys = Array.from(keys).sort();
+    const map = new Map<string, number>();
+    sortedKeys.forEach((key, index) => map.set(key, index % PROJECT_COLORS.length));
+    return map;
+  }, [relevantProjects, resolveGroupingSource]);
 
   const subProjectCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -83,12 +147,15 @@ export default function Accounts({
   const currentProjectName = singleProjectSelected ? projectFilters.filteredProjects[0].name : null;
 
   // Individual project budget data for breakdown
-  const projectBudgetData = useMemo(() => {
-    return relevantProjects.map((project, index) => {
+  const projectBudgetData = useMemo<ProjectBudgetEntry[]>(() => {
+    return relevantProjects.map((project) => {
       const normalized = getNormalizedBudget(project);
-      const utilization = normalized.totalBudget > 0 
-        ? (normalized.utilizedBudget / normalized.totalBudget) * 100 
+      const utilization = normalized.totalBudget > 0
+        ? (normalized.utilizedBudget / normalized.totalBudget) * 100
         : 0;
+      const sourceName = resolveGroupingSource(project);
+      const groupKey = normalizeGroupKey(sourceName) || sourceName.toLowerCase();
+      const groupColor = colorIndexMap.get(groupKey) ?? 0;
       return {
         id: project.id,
         name: project.name,
@@ -98,10 +165,57 @@ export default function Accounts({
         utilizedBudget: normalized.utilizedBudget,
         pendingBudget: normalized.totalBudget - normalized.utilizedBudget,
         utilizationPercent: utilization,
-        colorIndex: index % PROJECT_COLORS.length,
+        colorIndex: groupColor,
+        groupKey,
+        sourceName,
       };
     }).sort((a, b) => b.totalBudget - a.totalBudget);
-  }, [relevantProjects, getNormalizedBudget]);
+  }, [relevantProjects, getNormalizedBudget, resolveGroupingSource, colorIndexMap]);
+
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set());
+
+  const toggleGroup = (key: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
+
+  const groupedProjectBudgetData = useMemo<ProjectGroupSummary[]>(() => {
+    const groups = new Map<string, ProjectGroupSummary>();
+
+    projectBudgetData.forEach((project) => {
+      const sourceName = project.sourceName;
+      const groupKey = project.groupKey;
+      const existing = groups.get(groupKey);
+      if (existing) {
+        existing.projects.push(project);
+        existing.totalBudget += project.totalBudget;
+        existing.utilizedBudget += project.utilizedBudget;
+        existing.pendingBudget = existing.totalBudget - existing.utilizedBudget;
+        existing.utilizationPercent = existing.totalBudget > 0 ? (existing.utilizedBudget / existing.totalBudget) * 100 : 0;
+        return;
+      }
+
+      groups.set(groupKey, {
+        key: groupKey,
+        label: deriveGroupLabel(sourceName),
+        totalBudget: project.totalBudget,
+        utilizedBudget: project.utilizedBudget,
+        pendingBudget: project.totalBudget - project.utilizedBudget,
+        utilizationPercent: project.utilizationPercent,
+        projects: [project],
+        colorIndex: project.colorIndex,
+      });
+    });
+
+    return Array.from(groups.values()).sort((a, b) => b.totalBudget - a.totalBudget);
+  }, [projectBudgetData]);
 
   const circumference = 2 * Math.PI * 90;
   const utilizedOffset = circumference - (utilizedPercentage / 100) * circumference;
@@ -119,6 +233,66 @@ export default function Accounts({
       return `₹${(amount / 1000).toFixed(1)} K`;
     }
     return `₹${amount.toLocaleString('en-IN')}`;
+  };
+
+  const renderProjectCard = (project: ProjectBudgetEntry) => {
+    const colors = PROJECT_COLORS[project.colorIndex];
+    return (
+      <div
+        key={project.id}
+        className={`p-5 rounded-2xl ${colors.light} ${colors.border} border-2 hover:shadow-lg transition-all`}
+      >
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex-1">
+            <h4 className="text-lg font-black text-slate-800">{project.name}</h4>
+            <p className="text-xs font-semibold text-slate-500">
+              📍 {project.location}, {project.state}
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-2xl font-black text-slate-800">{formatCurrency(project.totalBudget)}</p>
+            <p className="text-xs font-semibold text-slate-500">Total Budget</p>
+          </div>
+        </div>
+
+        <div className="h-6 bg-card rounded-full overflow-hidden shadow-inner mb-3">
+          {project.utilizationPercent > 0 ? (
+            <div
+              className={`h-full bg-gradient-to-r ${colors.bg} rounded-full transition-all duration-700 flex items-center justify-end pr-2`}
+              style={{ width: `${Math.max(project.utilizationPercent, 3)}%` }}
+            >
+              {project.utilizationPercent > 15 && (
+                <span className="text-xs font-bold text-white drop-shadow">
+                  {project.utilizationPercent.toFixed(0)}%
+                </span>
+              )}
+            </div>
+          ) : (
+            <div className="h-full w-full" aria-hidden="true" />
+          )}
+        </div>
+
+        <div className="flex items-center justify-between text-sm">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-gradient-to-r from-green-400 to-emerald-500"></div>
+              <span className="font-semibold text-muted-foreground">
+                Utilized: <span className="text-emerald-600 font-bold">{formatCurrency(project.utilizedBudget)}</span>
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-gradient-to-r from-orange-400 to-orange-500"></div>
+              <span className="font-semibold text-muted-foreground">
+                Pending: <span className="text-orange-600 font-bold">{formatCurrency(project.pendingBudget)}</span>
+              </span>
+            </div>
+          </div>
+          <span className="font-black text-lg" style={{ color: project.utilizationPercent >= 80 ? '#10b981' : project.utilizationPercent >= 50 ? '#f59e0b' : '#ef4444' }}>
+            {project.utilizationPercent.toFixed(1)}%
+          </span>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -238,65 +412,65 @@ export default function Accounts({
             <div className="bg-card rounded-xl border border-border p-8 shadow-md hover:shadow-lg hover:border-emerald-300 transition-all">
               <h3 className="text-xl font-black text-card-foreground mb-6">📁 Project-wise Budget Breakdown</h3>
               
-              <div className="space-y-4">
-                {projectBudgetData.map((project) => {
-                  const colors = PROJECT_COLORS[project.colorIndex];
+              <div className="space-y-6">
+                {groupedProjectBudgetData.map((group) => {
+                  const colors = PROJECT_COLORS[group.colorIndex];
+                  const isCollapsed = collapsedGroups.has(group.key);
+
+                  if (group.projects.length === 1) {
+                    return renderProjectCard(group.projects[0]);
+                  }
+
                   return (
-                    <div 
-                      key={project.id} 
-                      className={`p-5 rounded-2xl ${colors.light} ${colors.border} border-2 hover:shadow-lg transition-all`}
-                    >
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex-1">
-                          <h4 className="text-lg font-black text-slate-800">{project.name}</h4>
-                          <p className="text-xs font-semibold text-slate-500">
-                            📍 {project.location}, {project.state}
-                          </p>
+                    <div key={group.key} className="space-y-4">
+                      <div className={`p-5 rounded-2xl ${colors.light} ${colors.border} border-2 shadow-sm`}>
+                        <div className="flex items-start justify-between gap-4 mb-3">
+                          <div>
+                            <h4 className="text-lg font-black text-slate-800">{group.label}</h4>
+                            <p className="text-xs text-muted-foreground">{group.projects.length} projects grouped</p>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <div className="text-right">
+                              <p className="text-2xl font-black text-slate-800">{formatCurrency(group.totalBudget)}</p>
+                              <p className="text-xs font-semibold text-slate-500">Group Total Budget</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => toggleGroup(group.key)}
+                              className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground transition-colors"
+                              aria-expanded={!isCollapsed}
+                            >
+                              <span aria-hidden="true">{isCollapsed ? '▶' : '▼'}</span>
+                              {isCollapsed ? 'Expand' : 'Collapse'}
+                            </button>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <p className="text-2xl font-black text-slate-800">{formatCurrency(project.totalBudget)}</p>
-                          <p className="text-xs font-semibold text-slate-500">Total Budget</p>
+                        <div className="grid grid-cols-3 gap-3 text-xs uppercase tracking-wide">
+                          <div>
+                            <p className="text-muted-foreground">Utilized</p>
+                            <p className="font-black text-emerald-600">{formatCurrency(group.utilizedBudget)}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Pending</p>
+                            <p className="font-black text-orange-600">{formatCurrency(group.pendingBudget)}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Utilization</p>
+                            <p className="font-black text-slate-800">{group.utilizationPercent.toFixed(1)}%</p>
+                          </div>
                         </div>
-                      </div>
-                      
-                      {/* Progress bar */}
-                      <div className="h-6 bg-card rounded-full overflow-hidden shadow-inner mb-3">
-                        {project.utilizationPercent > 0 ? (
+                        <div className="mt-4 h-2 bg-card rounded-full overflow-hidden">
                           <div
-                            className={`h-full bg-gradient-to-r ${colors.bg} rounded-full transition-all duration-700 flex items-center justify-end pr-2`}
-                            style={{ width: `${Math.max(project.utilizationPercent, 3)}%` }}
-                          >
-                            {project.utilizationPercent > 15 && (
-                              <span className="text-xs font-bold text-white drop-shadow">
-                                {project.utilizationPercent.toFixed(0)}%
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="h-full w-full" aria-hidden="true" />
-                        )}
-                      </div>
-                      
-                      {/* Stats row */}
-                      <div className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-4">
-                          <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full bg-gradient-to-r from-green-400 to-emerald-500"></div>
-                            <span className="font-semibold text-muted-foreground">
-                              Utilized: <span className="text-emerald-600 font-bold">{formatCurrency(project.utilizedBudget)}</span>
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full bg-gradient-to-r from-orange-400 to-orange-500"></div>
-                            <span className="font-semibold text-muted-foreground">
-                              Pending: <span className="text-orange-600 font-bold">{formatCurrency(project.pendingBudget)}</span>
-                            </span>
-                          </div>
+                            className={`h-full bg-gradient-to-r ${colors.bg}`}
+                            style={{ width: `${Math.max(group.utilizationPercent, 3)}%` }}
+                          ></div>
                         </div>
-                        <span className="font-black text-lg" style={{ color: project.utilizationPercent >= 80 ? '#10b981' : project.utilizationPercent >= 50 ? '#f59e0b' : '#ef4444' }}>
-                          {project.utilizationPercent.toFixed(1)}%
-                        </span>
                       </div>
+                      {!isCollapsed && (
+                        <div className="space-y-4 pl-3 border-l border-dashed border-border">
+                          {group.projects.map((project) => renderProjectCard(project))}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
