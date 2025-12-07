@@ -5,10 +5,10 @@ import type { Project, Media as MediaAsset, ProjectActivity } from '@/types/csr'
 import { calculateDashboardMetrics } from '@/lib/metrics';
 import { getBrandColors } from '@/lib/logodev';
 import { formatProjectLabel } from '@/lib/projectFilters';
-import { 
+import {
   Edit2, Save, Users, TrendingUp, IndianRupee, Heart, BookOpen, GraduationCap, 
   School, Library, Award, UtensilsCrossed, Package, Home, Trash2, TreePine, Recycle, 
-  Building2, Target, ArrowRight, Image, Wallet, ChevronRight, Activity
+  Building2, Target, ArrowRight, ArrowLeft, Image, Wallet, ChevronRight, Activity
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -440,13 +440,24 @@ export default function Dashboard({
           }
         }}>
           <DialogContent className="max-w-4xl max-h-[80vh]">
-            <DialogHeader>
-              <DialogTitle>
-                {modalMode === 'state-selector' ? 'Select State' : 
-                 modalMode === 'location-selector' ? 'Select Location' : 
-                 modalMode === 'group-selector' ? 'Select Project Group' :
-                 'Project Overview'}
-              </DialogTitle>
+            <DialogHeader className="space-y-2">
+              <div className="flex items-center gap-3">
+                {modalMode === 'projects' && (
+                  <Button variant="ghost" size="sm" onClick={() => {
+                    setModalMode('group-selector');
+                    setModalGroupProjectName(null);
+                  }}>
+                    <ArrowLeft className="w-4 h-4 mr-1" />
+                    Back
+                  </Button>
+                )}
+                <DialogTitle>
+                  {modalMode === 'state-selector' ? 'Select State' : 
+                   modalMode === 'location-selector' ? 'Select Location' : 
+                   modalMode === 'group-selector' ? 'Select Project Group' :
+                   'Project Overview'}
+                </DialogTitle>
+              </div>
               <DialogDescription>
                 {modalMode === 'state-selector' ? 'Choose a state to view its projects' :
                  modalMode === 'location-selector' ? 'Choose a location to view its projects' :
@@ -623,10 +634,21 @@ export default function Dashboard({
           }
         }}>
           <DialogContent className="max-w-4xl max-h-[80vh]">
-            <DialogHeader>
-              <DialogTitle>
-                {modalMode === 'budget-group-selector' ? 'Budget Overview by Project' : 'Project Budget Details'}
-              </DialogTitle>
+            <DialogHeader className="space-y-2">
+              <div className="flex items-center gap-3">
+                {modalMode === 'budget-projects' && (
+                  <Button variant="ghost" size="sm" onClick={() => {
+                    setModalMode('budget-group-selector');
+                    setBudgetModalGroupProjectName(null);
+                  }}>
+                    <ArrowLeft className="w-4 h-4 mr-1" />
+                    Back
+                  </Button>
+                )}
+                <DialogTitle>
+                  {modalMode === 'budget-group-selector' ? 'Budget Overview by Project' : 'Project Budget Details'}
+                </DialogTitle>
+              </div>
               <DialogDescription>
                 {modalMode === 'budget-group-selector' 
                   ? 'Select a project to view detailed budget breakdown' 
