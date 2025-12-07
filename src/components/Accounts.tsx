@@ -291,7 +291,7 @@ export default function Accounts({
   };
 
   return (
-    <div className="flex-1 bg-background overflow-auto">
+    <div className="flex-1 bg-background min-h-0">
       <div className="p-8">
         <div className="mb-8">
           <h1 className="text-4xl md:text-5xl font-bold text-foreground dark:text-white mb-2">
@@ -418,28 +418,26 @@ export default function Accounts({
 
                   return (
                     <div key={group.key} className="space-y-4">
-                      <div className={`p-5 rounded-2xl ${colors.light} ${colors.border} border-2 shadow-sm`}>
+                      <div
+                        className={`p-5 rounded-2xl ${colors.light} ${colors.border} border-2 shadow-sm cursor-pointer hover:shadow-md transition-all`}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            toggleGroup(group.key);
+                          }
+                        }}
+                        onClick={() => toggleGroup(group.key)}
+                      >
                         <div className="flex items-start justify-between gap-4 mb-3">
                           <div>
                             <h4 className="text-lg font-black text-slate-800">{group.label}</h4>
                             <p className="text-xs text-muted-foreground">{group.projects.length} projects grouped</p>
                           </div>
-                          <div className="flex items-center gap-4">
-                            <div className="text-right">
-                              <p className="text-2xl font-black text-slate-800">{formatCurrency(group.totalBudget)}</p>
-                              <p className="text-xs font-semibold text-slate-500">Group Total Budget</p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => toggleGroup(group.key)}
-                              className="flex items-center text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
-                              aria-expanded={!isCollapsed}
-                            >
-                              <span aria-hidden="true" className="text-lg leading-none">
-                                {isCollapsed ? '▶' : '▼'}
-                              </span>
-                              <span className="sr-only">{isCollapsed ? 'Expand group' : 'Collapse group'}</span>
-                            </button>
+                          <div className="text-right">
+                            <p className="text-2xl font-black text-slate-800">{formatCurrency(group.totalBudget)}</p>
+                            <p className="text-xs font-semibold text-slate-500">Group Total Budget</p>
                           </div>
                         </div>
                         <div className="grid grid-cols-3 gap-3 text-xs uppercase tracking-wide">

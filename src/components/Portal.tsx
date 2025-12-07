@@ -373,7 +373,7 @@ export default function Portal() {
             </div>
           </header>
 
-          <div className="flex-1 overflow-auto bg-background rounded-b-3xl">
+          <div className="flex-1 overflow-auto bg-background rounded-b-3xl min-h-0">
             {dataError && (
               <div className="mx-8 mt-6 mb-2 p-4 border-2 border-red-200 bg-red-50 rounded-2xl text-red-700 font-semibold">
                 {dataError}
