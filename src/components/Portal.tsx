@@ -124,10 +124,7 @@ export default function Portal() {
             `).in('project_id', projectIds).eq('is_active', true),
             supabase.from('reports').select('*').in('project_id', projectIds),
             supabase.from('real_time_updates').select('*').in('project_id', projectIds),
-            supabase.from('media_articles').select(`
-              *,
-              update:update_id (title)
-            `).in('project_id', projectIds),
+            supabase.from('media_articles').select('*').in('project_id', projectIds),
           ]);
 
           if (timelineRes.error) throw timelineRes.error;
@@ -170,10 +167,13 @@ export default function Portal() {
           mappedReports = mapReports(reportsRes.data ?? []);
           mappedUpdates = mapUpdates(updatesRes.data ?? []);
           
-          // Map media with update titles from joined data
+          const updateTitleById = new Map<string, string>(
+            mappedUpdates.map((update) => [update.id, update.title])
+          );
+
           const mediaWithUpdateTitles = (mediaRes.data ?? []).map((m: any) => ({
             ...m,
-            update_title: m.update?.title || null,
+            update_title: m.update_id ? updateTitleById.get(m.update_id) ?? null : null,
           }));
           const mediaSplit = splitMediaArticles(mediaWithUpdateTitles);
           mediaPhotos = mediaSplit.media.filter((asset) => asset.type === 'photo');
