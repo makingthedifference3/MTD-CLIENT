@@ -447,7 +447,7 @@ export default function Dashboard({
             setModalReturnMode(null);
           }
         }}>
-          <DialogContent className="max-w-4xl max-h-[80vh]">
+          <DialogContent className="max-w-5xl w-[1100px] max-h-[85vh] overflow-hidden">
             <DialogHeader className="space-y-2">
               <div className="flex items-center gap-3">
                 {modalMode === 'projects' && (
@@ -546,7 +546,7 @@ export default function Dashboard({
                 }}
               />
             ) : (
-              <ScrollArea className="max-h-[60vh] pr-4">
+              <ScrollArea className="max-h-[65vh] pr-4">
                 <div className="space-y-4">
                   {modalProjects.map((project) => {
                   const totalBudget = sanitizeBudgetValue(project.total_budget);
