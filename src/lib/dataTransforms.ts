@@ -280,6 +280,7 @@ export const mapReports = (rows: ReportRow[]): Report[] =>
       title: safeString(row.title, row.report_code ?? 'Report'),
       date: toISODate(row.generated_date ?? row.submitted_date ?? row.period_to ?? row.period_from),
       drive_link: row.report_drive_link ?? undefined,
+      source: 'report',
     }));
 
 export const mapUpdates = (rows: UpdateRow[]): RealTimeUpdate[] =>
@@ -293,6 +294,7 @@ export const mapUpdates = (rows: UpdateRow[]): RealTimeUpdate[] =>
       description: row.description ?? '',
       drive_link: row.drive_link ?? row.documents?.drive_link ?? undefined,
       is_downloadable: Boolean(row.is_downloadable ?? row.is_public),
+      source: 'update',
     }));
 
 export const splitMediaArticles = (rows: MediaArticleRow[]): {
@@ -303,8 +305,6 @@ export const splitMediaArticles = (rows: MediaArticleRow[]): {
   const articles: Article[] = [];
 
   rows.forEach((row) => {
-    if (!row.id || !row.project_id) return;
-
     const mediaType = row.media_type?.toLowerCase();
     const baseDate = toISODate(row.captured_at ?? row.event_date ?? row.date);
     const title = safeString(row.title, 'Media Asset');
@@ -323,7 +323,7 @@ export const splitMediaArticles = (rows: MediaArticleRow[]): {
     if (isMediaType) {
       media.push({
         id: row.id,
-        project_id: row.project_id,
+        project_id: row.project_id as string,
         title,
         type: mediaType === 'video' ? 'video' : 'photo',
         date: baseDate,
@@ -338,7 +338,7 @@ export const splitMediaArticles = (rows: MediaArticleRow[]): {
     if (isArticleType) {
       articles.push({
         id: row.id,
-        project_id: row.project_id,
+        project_id: row.project_id as string,
         title,
         date: baseDate,
         is_featured: Boolean(row.is_featured),

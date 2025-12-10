@@ -15,7 +15,6 @@ export interface GroupedProject {
 interface GroupedProjectSelectorProps {
   projects: Project[];
   onSelectGroup: (group: GroupedProject) => void;
-  type?: 'overview' | 'budget';
 }
 
 export const matchesGroupProject = (project: Project, projectName: string | null, allProjects: Project[]) => {
@@ -30,7 +29,7 @@ export const matchesGroupProject = (project: Project, projectName: string | null
   return parentIds.includes(project.id) || (project.parent_project_id && parentIds.includes(project.parent_project_id));
 };
 
-export default function GroupedProjectSelector({ projects, onSelectGroup, type = 'overview' }: GroupedProjectSelectorProps) {
+export default function GroupedProjectSelector({ projects, onSelectGroup }: GroupedProjectSelectorProps) {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   const groupedProjects = useMemo(() => {
@@ -39,22 +38,19 @@ export default function GroupedProjectSelector({ projects, onSelectGroup, type =
     // First pass: create groups for parent projects and collect their children
     projects.forEach((project) => {
       if (project.parent_project_id) return; // Skip children for now
-      
+
       const name = project.name || 'Unnamed Project';
       const existing = groups.get(name);
-      
-      // Find all children of this project
-      const childProjects = projects.filter(p => p.parent_project_id === project.id);
+
+      const childProjects = projects.filter((p) => p.parent_project_id === project.id);
       const totalBudget = (project.total_budget || 0) + childProjects.reduce((sum, child) => sum + (child.total_budget || 0), 0);
       const utilizedBudget = (project.utilized_budget || 0) + childProjects.reduce((sum, child) => sum + (child.utilized_budget || 0), 0);
-      
+
       if (existing) {
-        // Merge into existing group
         existing.childProjects.push(...childProjects);
         existing.totalBudget += totalBudget;
         existing.utilizedBudget += utilizedBudget;
       } else {
-        // Create new group
         groups.set(name, {
           name,
           mainProject: project,
@@ -93,11 +89,13 @@ export default function GroupedProjectSelector({ projects, onSelectGroup, type =
           const percentage = Math.min(utilization, 100);
           const isExpanded = expandedGroups.has(group.name);
           const hasChildren = group.childProjects.length > 0;
+          const description = group.mainProject.description?.trim();
+          const location = group.mainProject.location || group.mainProject.state;
 
           return (
             <div key={group.name} className="space-y-2">
               <div
-                className="p-4 rounded-xl border border-border bg-card hover:border-primary/60 hover:shadow-md cursor-pointer transition-all"
+                className="group relative overflow-hidden rounded-2xl border border-border/80 bg-gradient-to-br from-slate-50 to-white shadow-sm hover:shadow-lg hover:border-primary/40 cursor-pointer transition-all"
                 onClick={() => onSelectGroup(group)}
                 role="button"
                 tabIndex={0}
@@ -108,35 +106,45 @@ export default function GroupedProjectSelector({ projects, onSelectGroup, type =
                   }
                 }}
               >
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      {hasChildren && (
-                        <button
-                          type="button"
-                          onClick={(event) => toggleGroup(group.name, event)}
-                          className="p-1 rounded-full bg-muted/70 hover:bg-muted"
-                          aria-label={isExpanded ? 'Collapse group' : 'Expand group'}
-                        >
-                          {isExpanded ? (
-                            <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                          ) : (
-                            <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                          )}
-                        </button>
+                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 bg-gradient-to-br from-primary/5 to-emerald-50 pointer-events-none"></div>
+                <div className="relative p-5 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        {hasChildren && (
+                          <button
+                            type="button"
+                            onClick={(event) => toggleGroup(group.name, event)}
+                            className="p-1.5 rounded-full bg-muted/80 hover:bg-muted border border-border"
+                            aria-label={isExpanded ? 'Collapse group' : 'Expand group'}
+                          >
+                            {isExpanded ? (
+                              <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                            ) : (
+                              <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                            )}
+                          </button>
+                        )}
+                        <h3 className="text-lg font-bold text-foreground leading-snug">{group.name}</h3>
+                      </div>
+                      {description && (
+                        <p className="text-sm text-foreground/80 leading-tight">{description}</p>
                       )}
-                      <h3 className="text-lg font-semibold text-foreground">{group.name}</h3>
+                      {location && (
+                        <p className="text-xs text-muted-foreground">📍 {location}</p>
+                      )}
+                      <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground font-semibold">
+                        <span className="px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">{formatCurrency(group.totalBudget)} total</span>
+                        <span className="px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100">{formatCurrency(group.utilizedBudget)} used</span>
+                        <span className="px-2 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200">{percentage.toFixed(0)}% utilized</span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                      <span>💰 {formatCurrency(group.totalBudget)}</span>
-                      <span>•</span>
-                      <span>{percentage.toFixed(0)}% utilized</span>
-                    </div>
+                    <ChevronRight className="w-5 h-5 text-muted-foreground shrink-0" />
                   </div>
-                  <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                </div>
-                <div className="mt-3 h-2 bg-muted rounded-full overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all" style={{ width: `${percentage}%` }} />
+
+                  <div className="h-2.5 bg-muted rounded-full overflow-hidden border border-border/60">
+                    <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all" style={{ width: `${percentage}%` }} />
+                  </div>
                 </div>
               </div>
 
@@ -147,26 +155,29 @@ export default function GroupedProjectSelector({ projects, onSelectGroup, type =
                     const childUtilized = child.utilized_budget || 0;
                     const childPercent = childTotal > 0 ? (childUtilized / childTotal) * 100 : 0;
                     return (
-                      <div key={child.id} className="p-3 rounded-xl border border-border bg-muted/30">
+                      <div key={child.id} className="p-3 rounded-xl border border-border bg-muted/40">
                         <div className="flex items-center justify-between gap-2">
-                          <p className="text-sm font-semibold text-foreground">{child.name || 'Unnamed'}</p>
+                          <p className="text-sm font-semibold text-foreground leading-snug">{child.name || 'Unnamed'}</p>
                           {child.toll_id && (
                             <Badge variant="outline" className="text-[10px]">
                               {child.toll_id}
                             </Badge>
                           )}
                         </div>
-                        <div className="mt-2 grid grid-cols-3 gap-2 text-[10px] text-muted-foreground">
+                        {child.description && (
+                          <p className="text-xs text-muted-foreground mt-1 leading-tight">{child.description}</p>
+                        )}
+                        <div className="mt-2 grid grid-cols-3 gap-2 text-[11px] text-muted-foreground font-semibold">
                           <div>
-                            <p className="uppercase tracking-wider">Budget</p>
+                            <p className="uppercase tracking-wider text-[10px]">Budget</p>
                             <p className="font-semibold text-foreground">{formatCurrency(childTotal)}</p>
                           </div>
                           <div>
-                            <p className="uppercase tracking-wider">Utilized</p>
+                            <p className="uppercase tracking-wider text-[10px]">Utilized</p>
                             <p className="font-semibold text-foreground">{formatCurrency(childUtilized)}</p>
                           </div>
                           <div>
-                            <p className="uppercase tracking-wider">Utilization</p>
+                            <p className="uppercase tracking-wider text-[10px]">Utilization</p>
                             <p className="font-semibold text-foreground">{childTotal ? `${childPercent.toFixed(0)}%` : '—'}</p>
                           </div>
                         </div>

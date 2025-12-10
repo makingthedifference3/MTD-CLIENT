@@ -6,7 +6,7 @@ import { formatProjectLabel } from '../lib/projectFilters';
 import ProjectFilterBar from './ProjectFilterBar';
 
 interface TimelinesProps {
-  projects: Array<{ id: string; name: string; state?: string; start_date?: string }>;
+  projects: Array<{ id: string; name: string; state?: string; start_date?: string; description?: string }>;
   activities: ProjectActivity[];
   projectFilters: UseProjectFiltersResult;
   brandColors?: { primary: string; gradient: string } | null;
@@ -69,14 +69,17 @@ export default function Timelines({
   const activityTimestamp = (activity: ProjectActivity) => getActivityStartValue(activity) ?? Number.POSITIVE_INFINITY;
 
   const groupedActivities = useMemo(() => {
-    const groups = new Map<string, { projectId: string; projectLabel: string; activities: ProjectActivity[] }>();
+    const groups = new Map<string, { projectId: string; projectLabel: string; projectDescription?: string; activities: ProjectActivity[] }>();
     filteredActivities.forEach((activity) => {
       const project = projects.find((p) => p.id === activity.project_id);
       const projectLabel = project ? formatProjectLabel(project as Partial<Project>) : 'Unnamed Project';
+      const projectDescription = project?.description?.trim();
       if (!groups.has(activity.project_id)) {
-        groups.set(activity.project_id, { projectId: activity.project_id, projectLabel, activities: [] });
+        groups.set(activity.project_id, { projectId: activity.project_id, projectLabel, projectDescription, activities: [] });
       }
-      groups.get(activity.project_id)!.activities.push(activity);
+      const current = groups.get(activity.project_id)!;
+      current.activities.push(activity);
+      if (projectDescription) current.projectDescription = projectDescription;
     });
     return Array.from(groups.values()).map((group) => {
       const activities = [...group.activities].sort((a, b) => activityTimestamp(a) - activityTimestamp(b));
@@ -221,6 +224,9 @@ export default function Timelines({
                       <div className={`flex ${sectionBg} `}>
                         <div style={{ width: `${phaseColumnWidth}px` }} className="px-4 py-3 space-y-1 bg-blue-200 ">
                           <p className="text-base font-semibold text-card-foreground truncate">{group.projectLabel}</p>
+                          {group.projectDescription && (
+                            <p className="text-xs font-semibold text-foreground/80 truncate">{group.projectDescription}</p>
+                          )}
                           <p className="text-xs text-muted-foreground">{group.projectDateLabel}</p>
                         </div>
                         <div className="flex-1 px-4 py-3 text-xs text-muted-foreground bg-blue-200">

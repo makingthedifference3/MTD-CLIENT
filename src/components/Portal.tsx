@@ -116,7 +116,7 @@ export default function Portal() {
         let mappedArticles: ArticleAsset[] = [];
 
         if (projectIds.length) {
-          const [timelineRes, activitiesRes, reportsRes, updatesRes, mediaRes] = await Promise.all([
+          const [timelineRes, activitiesRes, reportsRes, updatesRes, mediaRes, tempReportsRes, mergedReportsRes] = await Promise.all([
             supabase.from('timelines').select('*').in('project_id', projectIds),
             supabase.from('project_activities').select(`
               *,
@@ -125,6 +125,8 @@ export default function Portal() {
             supabase.from('reports').select('*').in('project_id', projectIds),
             supabase.from('real_time_updates').select('*').in('project_id', projectIds),
             supabase.from('media_articles').select('*').in('project_id', projectIds),
+            supabase.from('real_time_temp').select('*').in('project_id', projectIds),
+            supabase.from('real_time_merged_reports').select('*').in('project_id', projectIds),
           ]);
 
           if (timelineRes.error) throw timelineRes.error;
@@ -132,6 +134,8 @@ export default function Portal() {
           if (reportsRes.error) throw reportsRes.error;
           if (updatesRes.error) throw updatesRes.error;
           if (mediaRes.error) throw mediaRes.error;
+          if (tempReportsRes.error) throw tempReportsRes.error;
+          if (mergedReportsRes.error) throw mergedReportsRes.error;
 
           mappedTimelines = mapTimelines(timelineRes.data ?? []);
           
@@ -164,8 +168,57 @@ export default function Portal() {
             }));
           }
 
-          mappedReports = mapReports(reportsRes.data ?? []);
-          mappedUpdates = mapUpdates(updatesRes.data ?? []);
+          const normalizeDate = (value?: string | null) => {
+            if (!value) return new Date().toISOString().slice(0, 10);
+            const parsed = new Date(value);
+            return Number.isNaN(parsed.getTime()) ? new Date().toISOString().slice(0, 10) : parsed.toISOString().slice(0, 10);
+          };
+
+          const tempReports = (tempReportsRes.data ?? [])
+            .filter((row: any) => row.id && row.project_id)
+            .map((row: any) => ({
+              id: row.id,
+              project_id: row.project_id as string,
+              title: row.update_number ? `Monthly Update ${row.update_number}` : 'Monthly Update',
+              date: normalizeDate(row.date_of_report),
+              drive_link: row.pdf_link ?? undefined,
+              source: 'monthly' as const,
+            }));
+
+          const mergedReports = (mergedReportsRes.data ?? [])
+            .filter((row: any) => row.id && row.project_id)
+            .map((row: any) => ({
+              id: row.id,
+              project_id: row.project_id as string,
+              title: row.title || 'Merged Monthly Report',
+              date: normalizeDate(row.end_date ?? row.start_date),
+              drive_link: row.pdf_url ?? undefined,
+              source: 'merged' as const,
+            }));
+
+          mappedReports = [
+            ...mergedReports,
+            ...tempReports,
+            ...mapReports(reportsRes.data ?? []),
+          ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+          const tempUpdates = (tempReportsRes.data ?? [])
+            .filter((row: any) => row.id && row.project_id)
+            .map((row: any) => ({
+              id: row.id,
+              project_id: row.project_id as string,
+              title: row.update_number ? `Update ${row.update_number}` : 'Update PDF',
+              date: normalizeDate(row.date_of_report),
+              description: row.description ?? '',
+              drive_link: row.pdf_link ?? undefined,
+              is_downloadable: Boolean(row.pdf_link),
+              source: 'temp' as const,
+            }));
+
+          mappedUpdates = [
+            ...mapUpdates(updatesRes.data ?? []),
+            ...tempUpdates,
+          ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
           
           const updateTitleById = new Map<string, string>(
             mappedUpdates.map((update) => [update.id, update.title])

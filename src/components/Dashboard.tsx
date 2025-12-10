@@ -559,7 +559,7 @@ export default function Dashboard({
                   return (
                     <div
                       key={project.id}
-                      className="bg-card rounded-2xl border border-border p-4 shadow-sm cursor-pointer"
+                      className="bg-white rounded-2xl border border-border p-4 shadow-sm hover:shadow-md cursor-pointer"
                       role="button"
                       tabIndex={0}
                       onClick={() => {
@@ -576,25 +576,34 @@ export default function Dashboard({
                         }
                       }}
                     >
-                      <div className="flex items-center justify-between gap-4">
-                        <div>
-                          <p className="text-lg font-bold text-foreground">{project.name || 'Unnamed Project'}</p>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-1">
+                          <p className="text-lg font-bold text-foreground leading-tight">
+                            {project.name || 'Unnamed Project'}
+                          </p>
+                          {project.description && (
+                            <p className="text-sm text-muted-foreground leading-snug max-w-xl">
+                              {project.description}
+                            </p>
+                          )}
                           <p className="text-xs text-muted-foreground flex items-center gap-1">
                             <span>📍</span>
                             <span>{locationLabel}</span>
                           </p>
                         </div>
-                        {project.toll_id && (
-                          <Badge variant="outline" className="bg-muted/60 border-dashed text-[11px]">
-                            {subcompanyLabelMap.get(project.toll_id) || 'Subcompany'}
+                        <div className="flex items-center gap-2">
+                          {project.toll_id && (
+                            <Badge variant="outline" className="bg-muted/60 border-dashed text-[11px]">
+                              {subcompanyLabelMap.get(project.toll_id) || 'Subcompany'}
+                            </Badge>
+                          )}
+                          <Badge
+                            variant={project.status === 'active' ? 'default' : 'secondary'}
+                            className="uppercase tracking-wide text-[10px]"
+                          >
+                            {project.status?.toUpperCase() || 'STATUS UNKNOWN'}
                           </Badge>
-                        )}
-                        <Badge
-                          variant={project.status === 'active' ? 'default' : 'secondary'}
-                          className="uppercase tracking-wide text-[10px]"
-                        >
-                          {project.status?.toUpperCase() || 'STATUS UNKNOWN'}
-                        </Badge>
+                        </div>
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm text-muted-foreground mt-4">
                         <div>
@@ -684,7 +693,6 @@ export default function Dashboard({
             {modalMode === 'budget-group-selector' ? (
               <GroupedProjectSelector
                 projects={budgetBaseProjects}
-                type="budget"
                 onSelectGroup={(group: GroupedProject) => {
                   setBudgetModalGroupProjectName(group.name);
                   setModalMode('budget-projects');

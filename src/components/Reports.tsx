@@ -5,6 +5,7 @@ import type { RealTimeUpdate, Report as ReportType } from '../types/csr';
 import type { SelectOption, UseProjectFiltersResult } from '../lib/projectFilters';
 import ProjectFilterBar from './ProjectFilterBar';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
+import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 
 interface ReportsProps {
@@ -88,6 +89,12 @@ export default function Reports({
     setPreviewItem(item);
     setPreviewOpen(true);
   }
+
+  const formatSourceLabel = (source?: ReportType['source']) => {
+    if (source === 'monthly') return 'Monthly PDF';
+    if (source === 'merged') return 'Merged PDF';
+    return null;
+  };
 
   return (
     <div className="flex-1 bg-background overflow-auto">
@@ -191,18 +198,27 @@ export default function Reports({
                   </div>
 
                   <div className="space-y-3">
-                    {group.items.map((report) => (
-                      <div
+                    {group.items.map((report) => {
+                      const sourceLabel = formatSourceLabel(report.source);
+                      return (
+                        <div
                         key={report.id}
                         onClick={() => handlePreview({ ...report, kind: 'report' })}
                         role="button"
                         tabIndex={0}
                         className="flex items-center justify-between p-4 rounded-xl hover:bg-accent transition-all duration-300 group border border-border hover:border-emerald-300 dark:hover:border-emerald-600 cursor-pointer focus-visible:outline focus-visible:ring-2 focus-visible:ring-indigo-500"
                       >
-                        <div className="flex-1">
-                          <p className="text-sm font-bold text-foreground dark:text-slate-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
-                            {report.title}
-                          </p>
+                          <div className="flex-1 space-y-2">
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-bold text-foreground dark:text-slate-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                                {report.title}
+                              </p>
+                              {sourceLabel && (
+                                <Badge className="bg-purple-50 text-purple-700 border border-purple-100 text-[11px]">
+                                  {sourceLabel}
+                                </Badge>
+                              )}
+                            </div>
                           <p className="text-xs text-muted-foreground font-semibold">
                             📅 {new Date(report.date).toLocaleDateString('en-GB')}
                           </p>
@@ -219,8 +235,9 @@ export default function Reports({
                           <Download className="w-4 h-4" />
                           Downloads
                         </Button>
-                      </div>
-                    ))}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               ))}

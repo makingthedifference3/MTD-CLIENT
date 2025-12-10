@@ -137,6 +137,7 @@ export interface Report {
   title: string;
   date: string;
   drive_link?: string;
+  source?: 'report' | 'monthly' | 'merged';
 }
 
 export interface RealTimeUpdate {
@@ -147,6 +148,7 @@ export interface RealTimeUpdate {
   description: string;
   drive_link?: string;
   is_downloadable: boolean;
+  source?: 'update' | 'temp';
 }
 
 export interface Media {
