@@ -4,7 +4,8 @@ import type { Project } from '../types/csr';
 export type SelectOption = { value: string; label: string };
 
 export const formatProjectLabel = (project: Partial<Project>): string => {
-  const code = project.project_code?.trim();
+  const rawCode = project.project_code || project.code;
+  const code = rawCode?.trim();
   const name = project.name?.trim() || 'Unnamed Project';
   const location = project.location ? ` • ${project.location}` : '';
   const prefix = code ? `${code} • ` : '';

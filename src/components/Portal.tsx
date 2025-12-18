@@ -441,6 +441,8 @@ export default function Portal() {
                 onUpdateProject={handleUpdateProject}
                 photos={collections.mediaPhotos}
                 videos={collections.mediaVideos}
+                reports={collections.reports}
+                updates={collections.updates}
                 activities={collections.activities}
                 onNavigate={handleViewChange}
                 subcompanyOptions={subcompanyOptions}

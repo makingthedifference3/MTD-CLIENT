@@ -1,14 +1,14 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/useToast';
-import type { Project, Media as MediaAsset, ProjectActivity } from '@/types/csr';
+import type { Project, Media as MediaAsset, ProjectActivity, Report, RealTimeUpdate } from '@/types/csr';
 import { calculateDashboardMetrics } from '@/lib/metrics';
 import { getBrandColors } from '@/lib/logodev';
 import { formatProjectLabel } from '@/lib/projectFilters';
 import {
   Edit2, Save, Users, TrendingUp, IndianRupee, Heart, BookOpen, GraduationCap, 
   School, Library, Award, UtensilsCrossed, Package, Home, Trash2, TreePine, Recycle, 
-  Building2, Target, ArrowRight, ArrowLeft, Image, Wallet, ChevronRight, Activity
+  Building2, Target, ArrowRight, ArrowLeft, Image, Wallet, ChevronRight, Activity, FileText, Download
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -29,6 +29,8 @@ interface DashboardProps {
   onUpdateProject?: (projectId: string, updates: Partial<Project>) => Promise<void>;
   photos?: MediaAsset[];
   videos?: MediaAsset[];
+  reports?: Report[];
+  updates?: RealTimeUpdate[];
   activities?: ProjectActivity[];
   onNavigate?: (view: string) => void;
   subcompanyOptions?: SelectOption[];
@@ -54,6 +56,8 @@ export default function Dashboard({
   onUpdateProject, 
   photos = [],
   videos = [],
+  reports = [],
+  updates = [],
   activities = [],
   onNavigate,
   subcompanyOptions = [],
@@ -184,6 +188,7 @@ export default function Dashboard({
     return result;
   }, [projects, selectedProjectGroup, selectedState, selectedSubcompany]);
 
+  const singleProjectSelected = selectedProjectGroup !== 'all' && filteredProjects.length === 1;
   const visibleProjectIds = useMemo(() => filteredProjects.map(p => p.id), [filteredProjects]);
 
   const overviewStats = useMemo(() => {
@@ -249,10 +254,34 @@ export default function Dashboard({
     });
   }, [photos, videos, visibleProjectIds]);
 
+  const recentUpdates = useMemo(() => {
+    const filtered = updates.filter((update) => visibleProjectIds.includes(update.project_id));
+    return filtered.sort((a, b) => {
+      const aTime = Date.parse(a.date ?? '') || 0;
+      const bTime = Date.parse(b.date ?? '') || 0;
+      return bTime - aTime;
+    });
+  }, [updates, visibleProjectIds]);
+
   const getActivityTimestamp = (activity: ProjectActivity) => {
     const rawDate = activity.updated_at ?? activity.created_at ?? activity.actual_end_date ?? activity.end_date ?? activity.start_date;
     return rawDate ? Date.parse(rawDate) : 0;
   };
+
+  const toTimestamp = (value?: string | null): number | null => {
+    if (!value) return null;
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? null : parsed;
+  };
+
+  const compactActivityStart = (activity: ProjectActivity) =>
+    toTimestamp(activity.start_date ?? activity.actual_start_date ?? activity.actual_end_date ?? activity.end_date);
+
+  const compactActivityEnd = (activity: ProjectActivity) =>
+    toTimestamp(activity.end_date ?? activity.actual_end_date ?? activity.actual_start_date ?? activity.start_date);
+
+  const formatDateLabel = (timestamp: number | null) =>
+    timestamp === null ? null : new Date(timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
   const recentProjectSummaries = useMemo(() => {
     const filtered = activities.filter((activity) => visibleProjectIds.includes(activity.project_id));
@@ -283,6 +312,53 @@ export default function Dashboard({
         };
       });
   }, [activities, visibleProjectIds]);
+
+  const compactTimeline = useMemo(() => {
+    if (!singleProjectSelected || !filteredProjects.length) return null;
+    const projectId = filteredProjects[0].id;
+    const projectActivities = activities
+      .filter((activity) => activity.project_id === projectId)
+      .sort((a, b) => (compactActivityStart(a) ?? Infinity) - (compactActivityStart(b) ?? Infinity));
+
+    if (!projectActivities.length) return null;
+
+    let earliest = Number.POSITIVE_INFINITY;
+    let latest = Number.NEGATIVE_INFINITY;
+
+    projectActivities.forEach((activity) => {
+      const s = compactActivityStart(activity);
+      const e = compactActivityEnd(activity) ?? s;
+      if (s !== null) earliest = Math.min(earliest, s);
+      if (e !== null) latest = Math.max(latest, e);
+    });
+
+    if (!Number.isFinite(earliest)) return null;
+    if (!Number.isFinite(latest) || latest <= earliest) latest = earliest + 24 * 60 * 60 * 1000 * 30; // default 30-day window
+
+    const windowRange = Math.max(latest - earliest, 1);
+
+    const bars = projectActivities.map((activity) => {
+      const start = compactActivityStart(activity) ?? earliest;
+      const end = compactActivityEnd(activity) ?? start;
+      const startPct = ((start - earliest) / windowRange) * 100;
+      const widthPct = Math.max(((end - start) / windowRange) * 100, 4);
+      return {
+        id: activity.id,
+        title: activity.title || 'Activity',
+        startLabel: formatDateLabel(compactActivityStart(activity)),
+        endLabel: formatDateLabel(compactActivityEnd(activity)),
+        left: Math.min(Math.max(startPct, 0), 96),
+        width: Math.min(Math.max(widthPct, 4), 100),
+        completion: Math.min(Math.max(activity.completion_percentage ?? 0, 0), 100),
+      };
+    });
+
+    return {
+      bars,
+      startLabel: formatDateLabel(earliest),
+      endLabel: formatDateLabel(latest),
+    };
+  }, [activities, filteredProjects, singleProjectSelected]);
 
   const getMetricTitle = (key: string): string => {
     const titles: Record<string, string> = {
@@ -863,10 +939,11 @@ export default function Dashboard({
                 </CardContent>
               </Card>
 
-              {/* Projects Overview */}
-              <Card>
-                <CardHeader className="pb-2">
-                  <div className="flex items-center gap-3">
+              {/* Projects Overview OR Compact Timeline (single project) */}
+              {!singleProjectSelected ? (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center gap-3">
                       <div className="w-12 h-12 rounded-xl bg-cyan-100 dark:bg-cyan-950/30 flex items-center justify-center">
                         <Target className="w-6 h-6 text-cyan-600" />
                       </div>
@@ -877,7 +954,7 @@ export default function Dashboard({
                     </div>
                   </CardHeader>
                   <CardContent>
-                  <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-3">
                       <div
                         className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 text-center cursor-pointer hover:bg-emerald-100 dark:hover:bg-emerald-950/50 transition-colors"
                         onClick={(e) => {
@@ -950,9 +1027,80 @@ export default function Dashboard({
                         <p className="text-3xl font-bold text-amber-600">{overviewStats.locations || '-'}</p>
                         <p className="text-sm text-muted-foreground">Locations</p>
                       </div>
-                  </div>
-                </CardContent>
-              </Card>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg">
+                          <Activity className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-lg">Project Timeline</CardTitle>
+                          <CardDescription className="text-xs">Activity progress overview</CardDescription>
+                        </div>
+                      </div>
+                      <Button variant="outline" size="sm" onClick={() => onNavigate?.('timelines')}>
+                        View Full <ChevronRight className="w-4 h-4 ml-1" />
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {compactTimeline ? (
+                      <>
+                        <div className="flex items-center justify-between px-2 py-1.5 rounded-lg bg-muted/50 mb-4">
+                          <div className="flex items-center gap-2 text-xs">
+                            <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                            <span className="font-medium text-muted-foreground">Start: <span className="text-foreground">{compactTimeline.startLabel}</span></span>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs">
+                            <span className="font-medium text-muted-foreground">End: <span className="text-foreground">{compactTimeline.endLabel}</span></span>
+                            <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                          </div>
+                        </div>
+                        <ScrollArea className="h-[145px]" type="always">
+                          <div className="space-y-3 pr-4">
+                            {compactTimeline.bars.map((bar) => (
+                              <div key={bar.id} className="space-y-1.5">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm font-medium text-foreground truncate max-w-[60%]">{bar.title}</span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs text-muted-foreground">{bar.startLabel} - {bar.endLabel}</span>
+                                    <Badge variant={bar.completion >= 100 ? 'default' : 'secondary'} className={`text-xs ${
+                                      bar.completion >= 100 ? 'bg-emerald-500 text-white' : 'bg-purple-500 text-white'
+                                    }`}>
+                                      {bar.completion}%
+                                    </Badge>
+                                  </div>
+                                </div>
+                                <div className="relative h-8 bg-muted/40 rounded-lg overflow-hidden border border-border/50">
+                                  <div
+                                    className="absolute inset-y-0 rounded-lg bg-gradient-to-r from-purple-400 via-indigo-500 to-blue-500 opacity-30"
+                                    style={{ left: `${bar.left}%`, width: `${bar.width}%` }}
+                                  ></div>
+                                  <div
+                                    className="absolute inset-y-0 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 shadow-sm"
+                                    style={{ left: `${bar.left}%`, width: `${(bar.width * bar.completion) / 100}%` }}
+                                  ></div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </ScrollArea>
+                      </>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-8 text-center">
+                        <Activity className="w-12 h-12 text-muted-foreground/50 mb-3" />
+                        <p className="text-sm font-medium text-muted-foreground">No activities found</p>
+                        <p className="text-xs text-muted-foreground/70">Add activities to see the timeline</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
             </div>
 
             {/* Second Row */}
@@ -1019,47 +1167,125 @@ export default function Dashboard({
                 </CardContent>
               </Card>
 
-              {/* Activities */}
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-cyan-100 dark:bg-cyan-950/30 flex items-center justify-center">
-                      <Activity className="w-5 h-5 text-cyan-600" />
+              {/* Recent Media or Activities */}
+              {singleProjectSelected ? (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center shadow-lg">
+                        <Image className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-base">Media & Updates</CardTitle>
+                        <CardDescription className="text-xs">Latest photos and articles</CardDescription>
+                      </div>
                     </div>
-                    <CardTitle className="text-base">Recent Activities</CardTitle>
-                  </div>
-                  <Button variant="ghost" size="icon" onClick={() => onNavigate?.('timelines')}>
-                    <ChevronRight className="w-4 h-4" />
-                  </Button>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {recentProjectSummaries.map((summary) => {
-                      const activityProject = projectsById.get(summary.projectId);
-                      const activityProjectLabel = activityProject
-                        ? formatProjectLabel(activityProject)
-                        : 'Project info unavailable';
-                      const projectState = activityProject?.state;
-                      const projectDescription = activityProject?.description?.trim();
-                      const completionPercentage = summary.completion;
-                      return (
-                        <div key={summary.projectId} className="p-3 rounded-xl bg-muted/50 space-y-2">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex-1 space-y-1">
-                              <button
-                                onClick={() => {
-                                  if (activityProject) {
-                                    onSelectProject?.(activityProject.id);
-                                    localStorage.setItem('portal-selected-project', activityProject.id);
-                                    onNavigate?.('timelines');
-                                    localStorage.setItem('portal-current-view', 'timelines');
-                                  }
-                                }}
-                                className="font-medium text-sm text-foreground truncate hover:text-primary hover:underline transition-colors text-left"
-                              >
-                                {activityProjectLabel}
-                              </button>
-                                {/* <p className="text-xs text-muted-foreground">{activity.section || 'Activity'}</p> */}
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {recentMedia.slice(0, 3).map((media, index) => {
+                        const displayTitle = media.update_title || media.title || 'Untitled';
+                        const project = projectsById.get(media.project_id);
+                        const projectLabel = project ? formatProjectLabel(project) : 'Unknown Project';
+                        const mediaDate = media.date ? new Date(media.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : null;
+                        return (
+                          <div key={index} className="group relative rounded-xl border border-border overflow-hidden bg-card hover:shadow-md transition-all cursor-pointer"
+                            onClick={() => onNavigate?.('media')}>
+                            <div className="flex gap-3 p-3">
+                              <div className="w-16 h-16 rounded-lg overflow-hidden bg-muted flex-shrink-0">
+                                {media.drive_link ? (
+                                  <div className="relative w-full h-full">
+                                    <iframe
+                                      src={media.drive_link}
+                                      title={displayTitle}
+                                      className="w-full h-full border-0 pointer-events-none scale-150"
+                                    />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
+                                  </div>
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-sky-100 to-cyan-100 dark:from-sky-950/30 dark:to-cyan-950/30">
+                                    <Image className="w-6 h-6 text-muted-foreground" />
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0 space-y-1">
+                                <h4 className="font-semibold text-sm text-foreground line-clamp-1 group-hover:text-primary transition-colors">
+                                  {displayTitle}
+                                </h4>
+                                <p className="text-xs text-muted-foreground line-clamp-1">{projectLabel}</p>
+                                <div className="flex items-center gap-2">
+                                  {mediaDate && (
+                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5">
+                                      {mediaDate}
+                                    </Badge>
+                                  )}
+                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5">
+                                    {media.mediaType === 'photo' ? '📷 Photo' : '🎥 Video'}
+                                  </Badge>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {recentMedia.length === 0 && (
+                        <div className="flex flex-col items-center justify-center py-8 text-center">
+                          <Image className="w-12 h-12 text-muted-foreground/50 mb-3" />
+                          <p className="text-sm font-medium text-muted-foreground">No media available</p>
+                          <p className="text-xs text-muted-foreground/70">Upload photos or videos</p>
+                        </div>
+                      )}
+                      {recentMedia.length > 3 && (
+                        <Button variant="outline" size="sm" className="w-full" onClick={() => onNavigate?.('media')}>
+                          View All Media <ChevronRight className="w-4 h-4 ml-1" />
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between pb-2">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-cyan-100 dark:bg-cyan-950/30 flex items-center justify-center">
+                        <Activity className="w-5 h-5 text-cyan-600" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-base">Recent Activities</CardTitle>
+                        <CardDescription className="text-xs">Updates from filtered projects</CardDescription>
+                      </div>
+                    </div>
+                    <Button variant="ghost" size="icon" onClick={() => onNavigate?.('timelines')}>
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {recentProjectSummaries.map((summary) => {
+                        const activityProject = projectsById.get(summary.projectId);
+                        const activityProjectLabel = activityProject
+                          ? formatProjectLabel(activityProject)
+                          : 'Project info unavailable';
+                        const projectState = activityProject?.state;
+                        const projectDescription = activityProject?.description?.trim();
+                        const completionPercentage = summary.completion;
+                        return (
+                          <div key={summary.projectId} className="p-3 rounded-xl bg-muted/50 space-y-2">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex-1 space-y-1">
+                                <button
+                                  onClick={() => {
+                                    if (activityProject) {
+                                      onSelectProject?.(activityProject.id);
+                                      localStorage.setItem('portal-selected-project', activityProject.id);
+                                      onNavigate?.('timelines');
+                                      localStorage.setItem('portal-current-view', 'timelines');
+                                    }
+                                  }}
+                                  className="font-medium text-sm text-foreground truncate hover:text-primary hover:underline transition-colors text-left"
+                                >
+                                  {activityProjectLabel}
+                                </button>
                                 {projectDescription && (
                                   <p className="text-xs text-muted-foreground line-clamp-2">
                                     {projectDescription}
@@ -1068,37 +1294,37 @@ export default function Dashboard({
                                 {projectState && (
                                   <p className="text-xs text-muted-foreground">{projectState}</p>
                                 )}
+                              </div>
+                              <Badge 
+                                variant={completionPercentage >= 100 ? 'default' : 'secondary'} 
+                                className={`text-xs ${
+                                  completionPercentage >= 100 
+                                    ? 'bg-emerald-500 text-white' 
+                                    : 'bg-purple-500 text-white'
+                                }`}
+                              >
+                                {completionPercentage}%
+                              </Badge>
                             </div>
-                            <Badge 
-                              variant={completionPercentage >= 100 ? 'default' : 'secondary'} 
-                              className={`text-xs ${
-                                completionPercentage >= 100 
-                                  ? 'bg-emerald-500 text-white' 
-                                  : 'bg-purple-500 text-white'
-                              }`}
-                            >
-                              {completionPercentage}%
-                            </Badge>
+                            <Progress
+                              value={completionPercentage}
+                              className="h-1.5"
+                              indicatorClassName={
+                                completionPercentage >= 100
+                                  ? 'bg-gradient-to-r from-emerald-500 to-emerald-600'
+                                  : 'bg-gradient-to-r from-teal-500 to-cyan-500'
+                              }
+                            />
                           </div>
-                          {/* <p className="text-xs text-muted-foreground">{activity.section || 'Construction'}</p> */}
-                          <Progress
-                            value={completionPercentage}
-                            className="h-1.5"
-                            indicatorClassName={
-                              completionPercentage >= 100
-                                ? 'bg-gradient-to-r from-emerald-500 to-emerald-600'
-                                : 'bg-gradient-to-r from-teal-500 to-cyan-500'
-                            }
-                          />
-                        </div>
-                      );
-                    })}
-                    {recentProjectSummaries.length === 0 && (
-                      <p className="text-center text-muted-foreground text-sm py-8">No activities found</p>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
+                        );
+                      })}
+                      {recentProjectSummaries.length === 0 && (
+                        <p className="text-center text-muted-foreground text-sm py-8">No activities found</p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </div>
 
             {/* Impact Metrics */}
@@ -1149,6 +1375,82 @@ export default function Dashboard({
                     );
                   })}
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-slate-700 flex items-center justify-center">
+                    <FileText className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg">Real-Time Updates</CardTitle>
+                    <CardDescription className="text-xs">{recentUpdates.length} items</CardDescription>
+                  </div>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => onNavigate?.('reports')}>
+                  View All <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {recentUpdates.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-8 text-center">
+                    <FileText className="w-12 h-12 text-muted-foreground/50 mb-3" />
+                    <p className="text-sm font-medium text-muted-foreground">No updates available</p>
+                    <p className="text-xs text-muted-foreground/70">Field reports and updates will appear here</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {recentUpdates.slice(0, 4).map((update) => {
+                      const project = projectsById.get(update.project_id);
+                      const projectLabel = project ? formatProjectLabel(project) : 'Unknown Project';
+                      const updateDate = update.date
+                        ? new Date(update.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                        : 'Date unknown';
+                      const updateTime = update.date
+                        ? new Date(update.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+                        : '';
+                      return (
+                        <div key={update.id} className="p-3 rounded-xl border border-border bg-card/80 flex flex-col gap-2">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="space-y-1 flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-foreground line-clamp-2">{update.title || 'Project Update'}</p>
+                              {update.description && (
+                                <p className="text-xs text-muted-foreground line-clamp-2">{update.description}</p>
+                              )}
+                              <p className="text-xs text-muted-foreground line-clamp-1">{projectLabel}</p>
+                            </div>
+                            <Badge variant="outline" className="text-[11px] px-2 py-0 h-6">
+                              {updateDate}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] text-muted-foreground">{updateTime}</span>
+                            {update.drive_link && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="gap-1"
+                                onClick={() => {
+                                  window.open(update.drive_link, '_blank');
+                                }}
+                              >
+                                <Download className="w-4 h-4" />
+                                Open
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {recentUpdates.length > 4 && (
+                      <Button variant="outline" size="sm" className="w-full" onClick={() => onNavigate?.('reports')}>
+                        View All Updates <ChevronRight className="w-4 h-4 ml-1" />
+                      </Button>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </>
