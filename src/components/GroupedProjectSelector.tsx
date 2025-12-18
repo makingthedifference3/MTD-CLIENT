@@ -127,12 +127,6 @@ export default function GroupedProjectSelector({ projects, onSelectGroup }: Grou
                         )}
                         <h3 className="text-lg font-bold text-foreground leading-snug">{group.name}</h3>
                       </div>
-                      {description && (
-                        <p className="text-sm text-foreground/80 leading-tight">{description}</p>
-                      )}
-                      {location && (
-                        <p className="text-xs text-muted-foreground">📍 {location}</p>
-                      )}
                       <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground font-semibold">
                         <span className="px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">{formatCurrency(group.totalBudget)} total</span>
                         <span className="px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100">{formatCurrency(group.utilizedBudget)} used</span>
