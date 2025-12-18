@@ -160,6 +160,16 @@ export default function Dashboard({
     return modalBaseProjects.filter((project) => matchesGroupProject(project, modalGroupProjectName, projects));
   }, [modalBaseProjects, modalGroupProjectName, projects]);
 
+  const sortProjectsByUtilizedBudgetDesc = (items: Project[]) =>
+    [...items].sort((a, b) => {
+      const utilizedA = a.utilized_budget ?? 0;
+      const utilizedB = b.utilized_budget ?? 0;
+      if (utilizedB !== utilizedA) return utilizedB - utilizedA;
+      const nameA = a.name ?? '';
+      const nameB = b.name ?? '';
+      return nameA.localeCompare(nameB);
+    });
+
   const filteredProjects = useMemo(() => {
     let result = projects;
     if (selectedSubcompany !== 'all') {
@@ -190,8 +200,10 @@ export default function Dashboard({
   }, [filteredProjects, modalFilters.subcompany]);
 
   const budgetModalProjects = useMemo(() => {
-    if (!budgetModalGroupProjectName) return budgetBaseProjects;
-    return budgetBaseProjects.filter((project) => matchesGroupProject(project, budgetModalGroupProjectName, projects));
+    const baseProjects = budgetModalGroupProjectName
+      ? budgetBaseProjects.filter((project) => matchesGroupProject(project, budgetModalGroupProjectName, projects))
+      : budgetBaseProjects;
+    return sortProjectsByUtilizedBudgetDesc(baseProjects);
   }, [budgetBaseProjects, budgetModalGroupProjectName, projects]);
 
   const budgetData = useMemo(() => {
@@ -1028,6 +1040,7 @@ export default function Dashboard({
                         ? formatProjectLabel(activityProject)
                         : 'Project info unavailable';
                       const projectState = activityProject?.state;
+                      const projectDescription = activityProject?.description?.trim();
                       const completionPercentage = summary.completion;
                       return (
                         <div key={summary.projectId} className="p-3 rounded-xl bg-muted/50 space-y-2">
@@ -1046,10 +1059,15 @@ export default function Dashboard({
                               >
                                 {activityProjectLabel}
                               </button>
-                              {/* <p className="text-xs text-muted-foreground">{activity.section || 'Activity'}</p> */}
-                              {projectState && (
-                                <p className="text-xs text-muted-foreground">{projectState}</p>
-                              )}
+                                {/* <p className="text-xs text-muted-foreground">{activity.section || 'Activity'}</p> */}
+                                {projectDescription && (
+                                  <p className="text-xs text-muted-foreground line-clamp-2">
+                                    {projectDescription}
+                                  </p>
+                                )}
+                                {projectState && (
+                                  <p className="text-xs text-muted-foreground">{projectState}</p>
+                                )}
                             </div>
                             <Badge 
                               variant={completionPercentage >= 100 ? 'default' : 'secondary'} 

@@ -4,9 +4,11 @@ import type { Project } from '../types/csr';
 export type SelectOption = { value: string; label: string };
 
 export const formatProjectLabel = (project: Partial<Project>): string => {
+  const code = project.project_code?.trim();
   const name = project.name?.trim() || 'Unnamed Project';
   const location = project.location ? ` • ${project.location}` : '';
-  return `${name}${location}`;
+  const prefix = code ? `${code} • ` : '';
+  return `${prefix}${name}${location}`;
 };
 
 export interface UseProjectFiltersOptions {

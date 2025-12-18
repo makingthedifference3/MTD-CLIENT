@@ -112,6 +112,7 @@ export default function Article({
           subcompanyOptions={subcompanyOptions}
           selectedSubcompany={selectedSubcompany}
           onSubcompanyChange={onSubcompanyChange}
+          resetFilters={projectFilters.resetFilters}
         />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

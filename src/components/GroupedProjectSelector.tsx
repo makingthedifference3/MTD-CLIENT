@@ -17,6 +17,15 @@ interface GroupedProjectSelectorProps {
   onSelectGroup: (group: GroupedProject) => void;
 }
 
+const compareProjectsByUtilizedBudgetDesc = (a: Project, b: Project) => {
+  const utilizedA = a.utilized_budget ?? 0;
+  const utilizedB = b.utilized_budget ?? 0;
+  if (utilizedB !== utilizedA) return utilizedB - utilizedA;
+  return (a.name ?? '').localeCompare(b.name ?? '');
+};
+
+const sortProjectsByUtilizedBudgetDesc = (projects: Project[]) => [...projects].sort(compareProjectsByUtilizedBudgetDesc);
+
 export const matchesGroupProject = (project: Project, projectName: string | null, allProjects: Project[]) => {
   if (!projectName) return true;
   
@@ -61,7 +70,15 @@ export default function GroupedProjectSelector({ projects, onSelectGroup }: Grou
       }
     });
     
-    return Array.from(groups.values()).sort((a, b) => a.name.localeCompare(b.name));
+    return Array.from(groups.values())
+      .map((group) => ({
+        ...group,
+        childProjects: sortProjectsByUtilizedBudgetDesc(group.childProjects),
+      }))
+      .sort((a, b) => {
+        if (b.utilizedBudget !== a.utilizedBudget) return b.utilizedBudget - a.utilizedBudget;
+        return a.name.localeCompare(b.name);
+      });
   }, [projects]);
 
   const toggleGroup = (name: string, event: React.MouseEvent) => {

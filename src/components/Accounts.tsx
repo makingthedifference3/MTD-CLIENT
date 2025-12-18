@@ -313,6 +313,7 @@ export default function Accounts({
           subcompanyOptions={subcompanyOptions}
           selectedSubcompany={selectedSubcompany}
           onSubcompanyChange={onSubcompanyChange}
+          resetFilters={projectFilters.resetFilters}
         />
 
         {loading && (
