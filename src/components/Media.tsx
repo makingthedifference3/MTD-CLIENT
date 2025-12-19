@@ -1,14 +1,15 @@
 import { useMemo, useState } from 'react';
 import { Download, ChevronDown, ExternalLink } from 'lucide-react';
-import type { Media as MediaAsset } from '../types/csr';
+import type { Media as MediaAsset, Project } from '../types/csr';
 
+import { formatProjectIdentity } from '../lib/projectFilters';
 import type { SelectOption, UseProjectFiltersResult } from '../lib/projectFilters';
 import ProjectFilterBar from './ProjectFilterBar';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 
 interface MediaProps {
-  projects: Array<{ id: string; name: string; state?: string; start_date?: string }>;
+  projects: Array<Partial<Project>>;
   photos: MediaAsset[];
   videos: MediaAsset[];
   projectFilters: UseProjectFiltersResult;
@@ -32,6 +33,8 @@ export default function Media({
 }: MediaProps) {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<MediaAsset | null>(null);
+
+  const projectsById = useMemo(() => new Map(projects.map((project) => [project.id, project])), [projects]);
 
   const filteredPhotos = photos.filter((m) => projectFilters.visibleProjectIds.includes(m.project_id));
   const filteredVideos = videos.filter((m) => projectFilters.visibleProjectIds.includes(m.project_id));
@@ -130,34 +133,41 @@ export default function Media({
                   </div>
 
                   <div className="space-y-3">
-                    {group.items.map((photo) => (
-                      <div
-                        key={photo.id}
-                        onClick={() => handlePreview(photo)}
-                        role="button"
-                        tabIndex={0}
-                        className="flex items-center justify-between p-4 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-all duration-300 group border border-transparent hover:border-border dark:hover:border-slate-600 cursor-pointer focus-visible:outline focus-visible:ring-2 focus-visible:ring-emerald-500"
-                      >
-                        <div className="flex-1">
-                          <p className="text-sm font-semibold text-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
-                            {photo.is_geo_tagged && '📍 '}
-                            {photo.title} - {new Date(photo.date).toLocaleDateString('en-GB')}
-                          </p>
-                        </div>
-
-                        <Button
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            handleDownload(photo.drive_link);
-                          }}
-                          disabled={!photo.drive_link}
-                          className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-black shadow-lg hover:shadow-xl"
+                    {group.items.map((photo) => {
+                      const project = projectsById.get(photo.project_id);
+                      const projectIdentity = formatProjectIdentity(project);
+                      const formattedDate = new Date(photo.date).toLocaleDateString('en-GB');
+                      return (
+                        <div
+                          key={photo.id}
+                          onClick={() => handlePreview(photo)}
+                          role="button"
+                          tabIndex={0}
+                          className="flex items-center justify-between p-4 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-all duration-300 group border border-transparent hover:border-border dark:hover:border-slate-600 cursor-pointer focus-visible:outline focus-visible:ring-2 focus-visible:ring-emerald-500"
                         >
-                          <Download className="w-4 h-4" />
-                          Downloads
-                        </Button>
-                      </div>
-                    ))}
+                          <div className="flex-1 space-y-1">
+                            <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground line-clamp-1">
+                              {projectIdentity}
+                            </p>
+                            <p className="text-sm font-semibold text-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                              {photo.is_geo_tagged && '📍 '}
+                              {photo.title} - {formattedDate}
+                            </p>
+                          </div>
+                          <Button
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleDownload(photo.drive_link);
+                            }}
+                            disabled={!photo.drive_link}
+                            className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-black shadow-lg hover:shadow-xl"
+                          >
+                            <Download className="w-4 h-4" />
+                            Downloads
+                          </Button>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               ))}
@@ -190,34 +200,42 @@ export default function Media({
                   </div>
 
                   <div className="space-y-3">
-                    {group.items.map((video) => (
-                      <div
-                        key={video.id}
-                        onClick={() => handlePreview(video)}
-                        role="button"
-                        tabIndex={0}
-                        className="flex items-center justify-between p-4 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-all duration-300 group border border-transparent hover:border-border dark:hover:border-slate-600 cursor-pointer focus-visible:outline focus-visible:ring-2 focus-visible:ring-blue-500"
-                      >
-                        <div className="flex-1">
-                          <p className="text-sm font-semibold text-foreground group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                            {video.is_geo_tagged && '📍 '}
-                            {video.title} - {new Date(video.date).toLocaleDateString('en-GB')}
-                          </p>
-                        </div>
-
-                        <Button
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            handleDownload(video.drive_link);
-                          }}
-                          disabled={!video.drive_link}
-                          className="bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white font-semibold shadow-lg hover:shadow-xl"
+                    {group.items.map((video) => {
+                      const project = projectsById.get(video.project_id);
+                      const projectIdentity = formatProjectIdentity(project);
+                      const formattedDate = new Date(video.date).toLocaleDateString('en-GB');
+                      const displayTitle = video.update_title || video.title;
+                      return (
+                        <div
+                          key={video.id}
+                          onClick={() => handlePreview(video)}
+                          role="button"
+                          tabIndex={0}
+                          className="flex items-center justify-between p-4 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-all duration-300 group border border-transparent hover:border-border dark:hover:border-slate-600 cursor-pointer focus-visible:outline focus-visible:ring-2 focus-visible:ring-blue-500"
                         >
-                          <Download className="w-4 h-4" />
-                          Downloads
-                        </Button>
-                      </div>
-                    ))}
+                          <div className="flex-1 space-y-1">
+                            <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground line-clamp-1">
+                              {projectIdentity}
+                            </p>
+                            <p className="text-sm font-semibold text-foreground group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                              {video.is_geo_tagged && '📍 '}
+                              {displayTitle} - {formattedDate}
+                            </p>
+                          </div>
+                          <Button
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleDownload(video.drive_link);
+                            }}
+                            disabled={!video.drive_link}
+                            className="bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white font-semibold shadow-lg hover:shadow-xl"
+                          >
+                            <Download className="w-4 h-4" />
+                            Downloads
+                          </Button>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               ))}

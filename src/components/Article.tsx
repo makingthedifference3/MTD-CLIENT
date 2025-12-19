@@ -1,14 +1,15 @@
 import { useMemo, useState } from 'react';
 import { Download, ExternalLink } from 'lucide-react';
-import type { Article as ArticleType, Media as MediaAsset } from '../types/csr';
+import type { Article as ArticleType, Media as MediaAsset, Project } from '../types/csr';
 
+import { formatProjectIdentity } from '../lib/projectFilters';
 import type { SelectOption, UseProjectFiltersResult } from '../lib/projectFilters';
 import ProjectFilterBar from './ProjectFilterBar';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 
 interface ArticleProps {
-  projects: Array<{ id: string; name: string; state?: string; start_date?: string }>;
+  projects: Array<Partial<Project>>;
   articles: ArticleType[];
   videos: MediaAsset[];
   projectFilters: UseProjectFiltersResult;
@@ -42,13 +43,7 @@ export default function Article({
   const singleProjectSelected = projectFilters.selectedProjectGroup !== 'all' && projectFilters.filteredProjects.length === 1;
   const currentProjectName = singleProjectSelected ? projectFilters.filteredProjects[0].name : null;
 
-  const projectLookup = useMemo(() => {
-    const map: Record<string, { id: string; name: string; state?: string; start_date?: string }> = {};
-    projects.forEach((project) => {
-      map[project.id] = project;
-    });
-    return map;
-  }, [projects]);
+  const projectsById = useMemo(() => new Map(projects.map((project) => [project.id, project])), [projects]);
 
   const orderedProjects = useMemo(() => {
     const base = projectFilters.filteredProjects.length ? projectFilters.filteredProjects : projects;
@@ -135,20 +130,26 @@ export default function Article({
 
                   <div className="space-y-3">
                     {group.items.map((article) => {
+                      const project = projectsById.get(article.project_id);
+                      const projectIdentity = formatProjectIdentity(project);
                       const displayTitle = article.update_title || article.title;
+                      const formattedDate = new Date(article.date).toLocaleDateString('en-GB');
                       return (
-                      <div
-                        key={article.id}
-                        onClick={() => handlePreview({ ...article, kind: 'article' })}
-                        role="button"
-                        tabIndex={0}
-                        className="flex items-center justify-between p-4 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-all duration-300 group border border-transparent hover:border-border dark:hover:border-slate-600 gap-3 cursor-pointer focus-visible:outline focus-visible:ring-2 focus-visible:ring-amber-500"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-foreground group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">
-                            {displayTitle} - {new Date(article.date).toLocaleDateString('en-GB')}
-                          </p>
-                        </div>
+                        <div
+                          key={article.id}
+                          onClick={() => handlePreview({ ...article, kind: 'article' })}
+                          role="button"
+                          tabIndex={0}
+                          className="flex items-center justify-between p-4 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-all duration-300 group border border-transparent hover:border-border dark:hover:border-slate-600 gap-3 cursor-pointer focus-visible:outline focus-visible:ring-2 focus-visible:ring-amber-500"
+                        >
+                          <div className="flex-1 min-w-0 space-y-1">
+                            <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground line-clamp-1">
+                              {projectIdentity}
+                            </p>
+                            <p className="text-sm font-semibold text-foreground group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">
+                              {displayTitle} - {formattedDate}
+                            </p>
+                          </div>
 
                         <div className="flex items-center gap-2 flex-shrink-0">
                           {article.is_featured && (
@@ -196,20 +197,26 @@ export default function Article({
 
                   <div className="space-y-3">
                     {group.items.map((video) => {
+                      const project = projectsById.get(video.project_id);
+                      const projectIdentity = formatProjectIdentity(project);
                       const displayTitle = video.update_title || video.title;
+                      const formattedDate = new Date(video.date).toLocaleDateString('en-GB');
                       return (
-                      <div
-                        key={video.id}
-                        onClick={() => handlePreview({ ...video, kind: 'video' })}
-                        role="button"
-                        tabIndex={0}
-                        className="flex items-center justify-between p-4 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-all duration-300 group border border-transparent hover:border-border dark:hover:border-slate-600 gap-3 cursor-pointer focus-visible:outline focus-visible:ring-2 focus-visible:ring-purple-500"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-foreground group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
-                            {displayTitle} - {new Date(video.date).toLocaleDateString('en-GB')}
-                          </p>
-                        </div>
+                        <div
+                          key={video.id}
+                          onClick={() => handlePreview({ ...video, kind: 'video' })}
+                          role="button"
+                          tabIndex={0}
+                          className="flex items-center justify-between p-4 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-all duration-300 group border border-transparent hover:border-border dark:hover:border-slate-600 gap-3 cursor-pointer focus-visible:outline focus-visible:ring-2 focus-visible:ring-purple-500"
+                        >
+                          <div className="flex-1 min-w-0 space-y-1">
+                            <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground line-clamp-1">
+                              {projectIdentity}
+                            </p>
+                            <p className="text-sm font-semibold text-foreground group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+                              {displayTitle} - {formattedDate}
+                            </p>
+                          </div>
 
                         <div className="flex items-center gap-2 flex-shrink-0">
                           {video.news_channel && (
@@ -267,7 +274,7 @@ export default function Article({
                     {previewItem.title}
                   </DialogTitle>
                   <DialogDescription>
-                    {(projectLookup[previewItem.project_id]?.name || 'Project story')} •{' '}
+                    {formatProjectIdentity(projectsById.get(previewItem.project_id))} •{' '}
                     {new Date(previewItem.date).toLocaleDateString('en-GB')}
                   </DialogDescription>
                 </DialogHeader>

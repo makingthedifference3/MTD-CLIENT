@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/useToast';
-import type { Project, Media as MediaAsset, ProjectActivity, Report, RealTimeUpdate } from '@/types/csr';
+import type { Project, Media as MediaAsset, ProjectActivity, RealTimeUpdate } from '@/types/csr';
 import { calculateDashboardMetrics } from '@/lib/metrics';
 import { getBrandColors } from '@/lib/logodev';
-import { formatProjectLabel } from '@/lib/projectFilters';
+import { formatProjectLabel, formatProjectIdentity } from '@/lib/projectFilters';
 import {
   Edit2, Save, Users, TrendingUp, IndianRupee, Heart, BookOpen, GraduationCap, 
   School, Library, Award, UtensilsCrossed, Package, Home, Trash2, TreePine, Recycle, 
@@ -29,7 +29,6 @@ interface DashboardProps {
   onUpdateProject?: (projectId: string, updates: Partial<Project>) => Promise<void>;
   photos?: MediaAsset[];
   videos?: MediaAsset[];
-  reports?: Report[];
   updates?: RealTimeUpdate[];
   activities?: ProjectActivity[];
   onNavigate?: (view: string) => void;
@@ -56,7 +55,6 @@ export default function Dashboard({
   onUpdateProject, 
   photos = [],
   videos = [],
-  reports = [],
   updates = [],
   activities = [],
   onNavigate,
@@ -89,6 +87,7 @@ export default function Dashboard({
   const [budgetModalGroupProjectName, setBudgetModalGroupProjectName] = useState<string | null>(null);
   const [modalReturnMode, setModalReturnMode] = useState<'state-selector' | 'location-selector' | null>(null);
   const canEditMetrics = Boolean(onUpdateProject && user?.role !== 'client');
+  const [selectedUpdate, setSelectedUpdate] = useState<RealTimeUpdate | null>(null);
 
   const handleProjectGroupChange = (projectId: string) => {
     setSelectedProjectGroup(projectId);
@@ -144,6 +143,15 @@ export default function Dashboard({
     () => new Map(projects.map((project) => [project.id, project])),
     [projects]
   );
+
+  const selectedUpdateProject = selectedUpdate ? projectsById.get(selectedUpdate.project_id) : undefined;
+  const selectedUpdateDate = selectedUpdate?.date
+    ? new Date(selectedUpdate.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : 'Date unknown';
+  const selectedUpdateTime = selectedUpdate?.date
+    ? new Date(selectedUpdate.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+    : '';
+  const selectedUpdateIdentity = formatProjectIdentity(selectedUpdateProject);
 
   useEffect(() => {
     setSelectedProjectGroup(selectedProject ?? 'all');
@@ -1402,48 +1410,53 @@ export default function Dashboard({
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {recentUpdates.slice(0, 4).map((update) => {
-                      const project = projectsById.get(update.project_id);
-                      const projectLabel = project ? formatProjectLabel(project) : 'Unknown Project';
-                      const updateDate = update.date
-                        ? new Date(update.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                        : 'Date unknown';
-                      const updateTime = update.date
-                        ? new Date(update.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-                        : '';
-                      return (
-                        <div key={update.id} className="p-3 rounded-xl border border-border bg-card/80 flex flex-col gap-2">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="space-y-1 flex-1 min-w-0">
-                              <p className="text-sm font-semibold text-foreground line-clamp-2">{update.title || 'Project Update'}</p>
-                              {update.description && (
-                                <p className="text-xs text-muted-foreground line-clamp-2">{update.description}</p>
-                              )}
-                              <p className="text-xs text-muted-foreground line-clamp-1">{projectLabel}</p>
-                            </div>
-                            <Badge variant="outline" className="text-[11px] px-2 py-0 h-6">
-                              {updateDate}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-[11px] text-muted-foreground">{updateTime}</span>
-                            {update.drive_link && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="gap-1"
-                                onClick={() => {
-                                  window.open(update.drive_link, '_blank');
-                                }}
-                              >
-                                <Download className="w-4 h-4" />
-                                Open
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
+                    <ScrollArea className="max-h-[420px] pr-2">
+                      <div className="space-y-3">
+                        {recentUpdates.slice(0, 4).map((update) => {
+                          const project = projectsById.get(update.project_id);
+                          const projectIdentity = formatProjectIdentity(project);
+                          const updateDate = update.date
+                            ? new Date(update.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                            : 'Date unknown';
+                          return (
+                            <Card
+                              key={update.id}
+                              className="relative overflow-hidden shadow-sm hover:shadow-lg transition-shadow cursor-pointer"
+                              onClick={() => setSelectedUpdate(update)}
+                              role="button"
+                              tabIndex={0}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter' || event.key === ' ') {
+                                  event.preventDefault();
+                                  setSelectedUpdate(update);
+                                }
+                              }}
+                            >
+                              <div className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-indigo-500 via-indigo-400 to-emerald-300" />
+                              <CardContent className="pl-5 pr-4 py-3 space-y-2">
+                                <div className="flex items-center justify-between gap-2">
+                                  <Badge variant="secondary" className="text-[11px] px-3 py-1 rounded-full">
+                                    {projectIdentity}
+                                  </Badge>
+                                  <Badge variant="outline" className="text-[11px] px-3 py-0 h-7">
+                                    {updateDate}
+                                  </Badge>
+                                </div>
+                                <p className="text-sm font-semibold text-foreground line-clamp-2">
+                                  {update.title || 'Project Update'}
+                                </p>
+                                {update.description && (
+                                  <p className="text-xs text-muted-foreground line-clamp-2">
+                                    {update.description}
+                                  </p>
+                                )}
+                                {/* <p className="text-[11px] text-muted-foreground">Click anywhere on the card to view details</p> */}
+                              </CardContent>
+                            </Card>
+                          );
+                        })}
+                      </div>
+                    </ScrollArea>
                     {recentUpdates.length > 4 && (
                       <Button variant="outline" size="sm" className="w-full" onClick={() => onNavigate?.('reports')}>
                         View All Updates <ChevronRight className="w-4 h-4 ml-1" />
@@ -1455,6 +1468,66 @@ export default function Dashboard({
             </Card>
           </>
         )}
+
+                <Dialog
+                  open={Boolean(selectedUpdate)}
+                  onOpenChange={(open) => {
+                    if (!open) setSelectedUpdate(null);
+                  }}
+                >
+                  <DialogContent className="max-w-5xl max-h-[90vh]">
+                    <DialogHeader>
+                      <DialogTitle>Update Details</DialogTitle>
+                      <DialogDescription className="space-y-1">
+                        <span className="text-[11px] uppercase tracking-[0.3em] text-muted-foreground">
+                          {selectedUpdateIdentity || 'Unknown project'}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {selectedUpdateDate}
+                          {selectedUpdateTime ? ` • ${selectedUpdateTime}` : ''}
+                        </span>
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 mt-2">
+                      <p className="text-xl font-semibold text-foreground">
+                        {selectedUpdate?.title || 'Project Update'}
+                      </p>
+                      {selectedUpdate?.description && (
+                        <p className="text-sm text-muted-foreground whitespace-pre-line">
+                          {selectedUpdate.description}
+                        </p>
+                      )}
+                    </div>
+                    {selectedUpdate?.drive_link && (
+                      <div className="mt-4">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.2em] mb-2">
+                          Preview document
+                        </p>
+                        <div className="h-[420px] w-full rounded-2xl border border-border overflow-hidden">
+                          <iframe
+                            title="Update PDF"
+                            src={selectedUpdate.drive_link}
+                            className="w-full h-full"
+                          />
+                        </div>
+                      </div>
+                    )}
+                    <DialogFooter className="pt-4 gap-2">
+                      <Button variant="outline" onClick={() => setSelectedUpdate(null)}>
+                        Close
+                      </Button>
+                      {selectedUpdate?.drive_link && (
+                        <Button
+                          onClick={() => window.open(selectedUpdate.drive_link, '_blank')}
+                          className="gap-1"
+                        >
+                          <Download className="w-4 h-4" />
+                          Open Document
+                        </Button>
+                      )}
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
 
         {/* Impact Metrics Modal */}
         <Dialog open={showImpactModal} onOpenChange={setShowImpactModal}>

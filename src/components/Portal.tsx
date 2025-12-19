@@ -141,10 +141,12 @@ export default function Portal() {
           
           // Map activities and attach project name
           const rawActivities = activitiesRes.data ?? [];
-          mappedActivities = rawActivities.map((a: any) => ({
-            ...a,
-            project_name: a.projects?.name,
-          }));
+          mappedActivities = rawActivities.map(
+            (a: ProjectActivity & { projects?: { name?: string } }) => ({
+              ...a,
+              project_name: a.projects?.name ?? a.project_name ?? '',
+            })
+          );
 
           // Fetch activity items for all activities
           if (mappedActivities.length > 0) {
@@ -156,7 +158,7 @@ export default function Portal() {
               .order('item_order', { ascending: true });
             
             const itemsByActivity = new Map<string, ProjectActivityItem[]>();
-            (itemsData ?? []).forEach((item: any) => {
+            (itemsData ?? []).forEach((item: ProjectActivityItem) => {
               const list = itemsByActivity.get(item.activity_id) || [];
               list.push(item);
               itemsByActivity.set(item.activity_id, list);
@@ -175,24 +177,24 @@ export default function Portal() {
           };
 
           const tempReports = (tempReportsRes.data ?? [])
-            .filter((row: any) => row.id && row.project_id)
-            .map((row: any) => ({
-              id: row.id,
+            .filter((row: Record<string, unknown>) => row.id && row.project_id)
+            .map((row: Record<string, unknown>) => ({
+              id: String(row.id),
               project_id: row.project_id as string,
               title: row.update_number ? `Monthly Update ${row.update_number}` : 'Monthly Update',
-              date: normalizeDate(row.date_of_report),
-              drive_link: row.pdf_link ?? undefined,
+              date: normalizeDate(row.date_of_report as string | null | undefined),
+              drive_link: typeof row.pdf_link === 'string' ? row.pdf_link : undefined,
               source: 'monthly' as const,
             }));
 
           const mergedReports = (mergedReportsRes.data ?? [])
-            .filter((row: any) => row.id && row.project_id)
-            .map((row: any) => ({
-              id: row.id,
+            .filter((row: Record<string, unknown>) => row.id && row.project_id)
+            .map((row: Record<string, unknown>) => ({
+              id: String(row.id),
               project_id: row.project_id as string,
-              title: row.title || 'Merged Monthly Report',
-              date: normalizeDate(row.end_date ?? row.start_date),
-              drive_link: row.pdf_url ?? undefined,
+              title: typeof row.title === 'string' ? row.title : 'Merged Monthly Report',
+              date: normalizeDate((row.end_date ?? row.start_date) as string | null | undefined),
+              drive_link: typeof row.pdf_url === 'string' ? row.pdf_url : undefined,
               source: 'merged' as const,
             }));
 
@@ -203,14 +205,14 @@ export default function Portal() {
           ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
           const tempUpdates = (tempReportsRes.data ?? [])
-            .filter((row: any) => row.id && row.project_id)
-            .map((row: any) => ({
-              id: row.id,
+            .filter((row: Record<string, unknown>) => row.id && row.project_id)
+            .map((row: Record<string, unknown>) => ({
+              id: String(row.id),
               project_id: row.project_id as string,
               title: row.update_number ? `Update ${row.update_number}` : 'Update PDF',
-              date: normalizeDate(row.date_of_report),
-              description: row.description ?? '',
-              drive_link: row.pdf_link ?? undefined,
+              date: normalizeDate(row.date_of_report as string | null | undefined),
+              description: typeof row.description === 'string' ? row.description : '',
+              drive_link: typeof row.pdf_link === 'string' ? row.pdf_link : undefined,
               is_downloadable: Boolean(row.pdf_link),
               source: 'temp' as const,
             }));
@@ -224,7 +226,7 @@ export default function Portal() {
             mappedUpdates.map((update) => [update.id, update.title])
           );
 
-          const mediaWithUpdateTitles = (mediaRes.data ?? []).map((m: any) => ({
+          const mediaWithUpdateTitles = (mediaRes.data ?? []).map((m) => ({
             ...m,
             update_title: m.update_id ? updateTitleById.get(m.update_id) ?? null : null,
           }));
@@ -247,10 +249,10 @@ export default function Portal() {
           articles: mappedArticles,
         });
         setSelectedProject(null);
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (cancelled) return;
         console.error('Data loading error:', error);
-        const message = error?.message || (error instanceof Error ? error.message : 'Failed to load partner data');
+        const message = error instanceof Error ? error.message : (typeof error === 'object' && error !== null && 'message' in error ? String((error as Record<string, unknown>).message) : 'Failed to load partner data');
         setDataError(message);
       } finally {
         if (!cancelled) {
@@ -319,7 +321,6 @@ export default function Portal() {
   const projectFilters = useProjectFilters({
     projects: filteredBySubcompany,
     selectedProjectId: selectedProject,
-    selectedSubcompany,
     onSubcompanyChange: setSelectedSubcompany,
   });
 
@@ -441,7 +442,6 @@ export default function Portal() {
                 onUpdateProject={handleUpdateProject}
                 photos={collections.mediaPhotos}
                 videos={collections.mediaVideos}
-                reports={collections.reports}
                 updates={collections.updates}
                 activities={collections.activities}
                 onNavigate={handleViewChange}

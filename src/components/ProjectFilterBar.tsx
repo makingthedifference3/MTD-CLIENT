@@ -36,6 +36,23 @@ export default function ProjectFilterBar({
   return (
     <div className="bg-card/80 border border-border rounded-2xl p-4 md:p-5 shadow-sm backdrop-blur mb-8">
       <div className="flex flex-wrap items-end gap-4">
+        <div className="space-y-1">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">State</p>
+          <Select value={selectedState} onValueChange={onStateChange}>
+            <SelectTrigger className="w-[180px] border-2 rounded-xl" style={{ borderColor: accent }}>
+              <SelectValue placeholder="All States" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All States</SelectItem>
+              {states.map((state) => (
+                <SelectItem key={state} value={state || 'all'}>
+                  {state?.toUpperCase()}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         {onSubcompanyChange && subcompanyOptions.length > 0 && (
           <div className="space-y-1">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Subcompany</p>
@@ -66,23 +83,6 @@ export default function ProjectFilterBar({
               {projectGroupOptions.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
                   {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-1">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">State</p>
-          <Select value={selectedState} onValueChange={onStateChange}>
-            <SelectTrigger className="w-[180px] border-2 rounded-xl" style={{ borderColor: accent }}>
-              <SelectValue placeholder="All States" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All States</SelectItem>
-              {states.map((state) => (
-                <SelectItem key={state} value={state || 'all'}>
-                  {state?.toUpperCase()}
                 </SelectItem>
               ))}
             </SelectContent>

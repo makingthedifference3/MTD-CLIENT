@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Download, ExternalLink } from 'lucide-react';
-import type { RealTimeUpdate, Report as ReportType } from '../types/csr';
+import type { Project, RealTimeUpdate, Report as ReportType } from '../types/csr';
 
+import { formatProjectIdentity } from '../lib/projectFilters';
 import type { SelectOption, UseProjectFiltersResult } from '../lib/projectFilters';
 import ProjectFilterBar from './ProjectFilterBar';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
@@ -9,7 +10,7 @@ import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 
 interface ReportsProps {
-  projects: Array<{ id: string; name: string; state?: string; start_date?: string }>;
+  projects: Array<Partial<Project>>;
   updates: RealTimeUpdate[];
   reports: ReportType[];
   projectFilters: UseProjectFiltersResult;
@@ -43,17 +44,11 @@ export default function Reports({
   const singleProjectSelected = projectFilters.selectedProjectGroup !== 'all' && projectFilters.filteredProjects.length === 1;
   const currentProjectName = singleProjectSelected ? projectFilters.filteredProjects[0].name : null;
 
-  const projectLookup = useMemo(() => {
-    const map: Record<string, { id: string; name: string; state?: string; start_date?: string }> = {};
-    projects.forEach((project) => {
-      map[project.id] = project;
-    });
-    return map;
-  }, [projects]);
+  const projectsById = useMemo(() => new Map(projects.map((project) => [project.id, project])), [projects]);
 
   const orderedProjects = useMemo(() => {
     const base = projectFilters.filteredProjects.length ? projectFilters.filteredProjects : projects;
-    return base.filter((project) => projectFilters.visibleProjectIds.includes(project.id));
+    return base.filter((project) => typeof project.id === 'string' && projectFilters.visibleProjectIds.includes(project.id));
   }, [projectFilters.filteredProjects, projectFilters.visibleProjectIds, projects]);
 
   const groupedUpdates = useMemo(
@@ -141,34 +136,42 @@ export default function Reports({
                   </div>
 
                   <div className="space-y-3">
-                    {group.items.map((update) => (
-                      <div
-                        key={update.id}
-                        onClick={() => handlePreview({ ...update, kind: 'update' })}
-                        role="button"
-                        tabIndex={0}
-                        className="flex items-center justify-between p-4 rounded-xl hover:bg-accent transition-all duration-300 group border border-border hover:border-emerald-300 dark:hover:border-emerald-600 cursor-pointer focus-visible:outline focus-visible:ring-2 focus-visible:ring-emerald-500"
-                      >
-                        <div className="flex-1">
-                          <p className="text-sm font-bold text-foreground dark:text-slate-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
-                            {update.title} - {new Date(update.date).toLocaleDateString('en-GB')}
-                          </p>
-                        </div>
+                    {group.items.map((update) => {
+                      const project = projectsById.get(update.project_id);
+                      const projectIdentity = formatProjectIdentity(project);
+                      const formattedDate = new Date(update.date).toLocaleDateString('en-GB');
+                      return (
+                        <div
+                          key={update.id}
+                          onClick={() => handlePreview({ ...update, kind: 'update' })}
+                          role="button"
+                          tabIndex={0}
+                          className="flex items-center justify-between p-4 rounded-xl hover:bg-accent transition-all duration-300 group border border-border hover:border-emerald-300 dark:hover:border-emerald-600 cursor-pointer focus-visible:outline focus-visible:ring-2 focus-visible:ring-emerald-500"
+                        >
+                          <div className="flex-1 space-y-1">
+                            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                              {projectIdentity}
+                            </p>
+                            <p className="text-sm font-bold text-foreground dark:text-slate-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                              {update.title} - {formattedDate}
+                            </p>
+                          </div>
 
-                        {update.is_downloadable && update.drive_link && (
-                          <Button
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              handleDownload(update.drive_link);
-                            }}
-                            className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-black shadow-lg hover:shadow-xl"
-                          >
-                            <Download className="w-4 h-4" />
-                            Downloads
-                          </Button>
-                        )}
-                      </div>
-                    ))}
+                          {update.is_downloadable && update.drive_link && (
+                            <Button
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleDownload(update.drive_link);
+                              }}
+                              className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-black shadow-lg hover:shadow-xl"
+                            >
+                              <Download className="w-4 h-4" />
+                              Downloads
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               ))}
@@ -200,16 +203,22 @@ export default function Reports({
 
                   <div className="space-y-3">
                     {group.items.map((report) => {
+                      const project = projectsById.get(report.project_id);
+                      const projectIdentity = formatProjectIdentity(project);
                       const sourceLabel = formatSourceLabel(report.source);
+                      const formattedDate = new Date(report.date).toLocaleDateString('en-GB');
                       return (
                         <div
-                        key={report.id}
-                        onClick={() => handlePreview({ ...report, kind: 'report' })}
-                        role="button"
-                        tabIndex={0}
-                        className="flex items-center justify-between p-4 rounded-xl hover:bg-accent transition-all duration-300 group border border-border hover:border-emerald-300 dark:hover:border-emerald-600 cursor-pointer focus-visible:outline focus-visible:ring-2 focus-visible:ring-indigo-500"
-                      >
+                          key={report.id}
+                          onClick={() => handlePreview({ ...report, kind: 'report' })}
+                          role="button"
+                          tabIndex={0}
+                          className="flex items-center justify-between p-4 rounded-xl hover:bg-accent transition-all duration-300 group border border-border hover:border-emerald-300 dark:hover:border-emerald-600 cursor-pointer focus-visible:outline focus-visible:ring-2 focus-visible:ring-indigo-500"
+                        >
                           <div className="flex-1 space-y-2">
+                            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                              {projectIdentity}
+                            </p>
                             <div className="flex items-center gap-2">
                               <p className="text-sm font-bold text-foreground dark:text-slate-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
                                 {report.title}
@@ -220,22 +229,22 @@ export default function Reports({
                                 </Badge>
                               )}
                             </div>
-                          <p className="text-xs text-muted-foreground font-semibold">
-                            📅 {new Date(report.date).toLocaleDateString('en-GB')}
-                          </p>
-                        </div>
+                            <p className="text-xs text-muted-foreground font-semibold">
+                              📅 {formattedDate}
+                            </p>
+                          </div>
 
-                        <Button
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            handleDownload(report.drive_link);
-                          }}
-                          disabled={!report.drive_link}
-                          className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-black shadow-lg hover:shadow-xl"
-                        >
-                          <Download className="w-4 h-4" />
-                          Downloads
-                        </Button>
+                          <Button
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleDownload(report.drive_link);
+                            }}
+                            disabled={!report.drive_link}
+                            className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-black shadow-lg hover:shadow-xl"
+                          >
+                            <Download className="w-4 h-4" />
+                            Downloads
+                          </Button>
                         </div>
                       );
                     })}
@@ -274,7 +283,7 @@ export default function Reports({
                     {previewItem.title}
                   </DialogTitle>
                   <DialogDescription>
-                    {(projectLookup[previewItem.project_id]?.name || 'Project update')} •{' '}
+                    {formatProjectIdentity(projectsById.get(previewItem.project_id))} •{' '}
                     {new Date(previewItem.date).toLocaleDateString('en-GB')}
                   </DialogDescription>
                 </DialogHeader>

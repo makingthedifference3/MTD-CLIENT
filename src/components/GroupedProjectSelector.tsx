@@ -106,8 +106,6 @@ export default function GroupedProjectSelector({ projects, onSelectGroup }: Grou
           const percentage = Math.min(utilization, 100);
           const isExpanded = expandedGroups.has(group.name);
           const hasChildren = group.childProjects.length > 0;
-          const description = group.mainProject.description?.trim();
-          const location = group.mainProject.location || group.mainProject.state;
 
           return (
             <div key={group.name} className="space-y-2">

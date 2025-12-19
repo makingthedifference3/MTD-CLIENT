@@ -12,10 +12,26 @@ export const formatProjectLabel = (project: Partial<Project>): string => {
   return `${prefix}${name}${location}`;
 };
 
+export const formatProjectIdentity = (project?: Partial<Project>): string => {
+  if (!project) {
+    return 'Project info unavailable';
+  }
+
+  const code = (project.project_code || project.code || '').trim();
+  const name = project.name?.trim() || 'Unnamed Project';
+  const location = project.location?.trim();
+
+  const parts = [code, name, location].filter(Boolean);
+  if (!parts.length) {
+    return 'Project info unavailable';
+  }
+
+  return parts.join(', ');
+};
+
 export interface UseProjectFiltersOptions {
   projects: Project[];
   selectedProjectId: string | null;
-  selectedSubcompany?: string;
   onSubcompanyChange?: (value: string) => void;
 }
 
@@ -31,7 +47,7 @@ export interface UseProjectFiltersResult {
   resetFilters: () => void;
 }
 
-export function useProjectFilters({ projects, selectedProjectId, selectedSubcompany, onSubcompanyChange }: UseProjectFiltersOptions): UseProjectFiltersResult {
+export function useProjectFilters({ projects, selectedProjectId, onSubcompanyChange }: UseProjectFiltersOptions): UseProjectFiltersResult {
   const [selectedProjectGroup, setSelectedProjectGroup] = useState('all');
   const [selectedState, setSelectedState] = useState('all');
 
