@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef, type MouseEvent } from 'react';
 import { Download, ExternalLink } from 'lucide-react';
+import { PDFDocument } from 'pdf-lib';
 import type { Project, RealTimeUpdate, Report as ReportType } from '../types/csr';
 
 import { formatProjectIdentity } from '../lib/projectFilters';
@@ -25,6 +26,58 @@ type ReportPreviewItem =
   | (RealTimeUpdate & { kind: 'update' })
   | (ReportType & { kind: 'report' });
 
+interface MonthlyReportGroup {
+  key: string;
+  projectId: string;
+  monthLabel: string;
+  latestTimestamp: number;
+  reports: ReportType[];
+}
+
+const parseReportDate = (value?: string) => {
+  if (!value) return new Date();
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+};
+
+const formatMonthLabel = (date: Date) =>
+  date.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+
+const groupReportsByMonth = (project: Project, reports: ReportType[]): MonthlyReportGroup[] => {
+  const groups = new Map<string, MonthlyReportGroup>();
+
+  reports.forEach((report) => {
+    const parsed = parseReportDate(report.date);
+    const year = parsed.getFullYear();
+    const month = parsed.getMonth();
+    const monthKey = `${project.id}-${year}-${month}`;
+
+    const existing = groups.get(monthKey);
+    if (existing) {
+      existing.reports.push(report);
+      existing.latestTimestamp = Math.max(existing.latestTimestamp, parsed.getTime());
+      return;
+    }
+
+    groups.set(monthKey, {
+      key: monthKey,
+      projectId: project.id,
+      monthLabel: formatMonthLabel(parsed),
+      latestTimestamp: parsed.getTime(),
+      reports: [report],
+    });
+  });
+
+  return Array.from(groups.values())
+    .map((group) => ({
+      ...group,
+      reports: group.reports
+        .slice()
+        .sort((a, b) => parseReportDate(b.date).getTime() - parseReportDate(a.date).getTime()),
+    }))
+    .sort((a, b) => b.latestTimestamp - a.latestTimestamp);
+};
+
 export default function Reports({
   projects,
   updates,
@@ -38,6 +91,10 @@ export default function Reports({
 }: ReportsProps) {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewItem, setPreviewItem] = useState<ReportPreviewItem | null>(null);
+  const [mergingGroupKey, setMergingGroupKey] = useState<string | null>(null);
+  const [mergeError, setMergeError] = useState<string | null>(null);
+  const [expandedMonthGroups, setExpandedMonthGroups] = useState<string[]>([]);
+  const mergedPreviewRef = useRef<string | null>(null);
 
   const filteredUpdates = updates.filter((u) => projectFilters.visibleProjectIds.includes(u.project_id));
   const filteredReports = reports.filter((r) => projectFilters.visibleProjectIds.includes(r.project_id));
@@ -63,15 +120,25 @@ export default function Reports({
     [orderedProjects, filteredUpdates]
   );
 
-  const groupedReports = useMemo(
+  const projectMonthlyReportGroups = useMemo(
     () =>
       orderedProjects
-        .map((project) => ({
-          projectId: project.id,
-          projectName: project.name || 'Unnamed Project',
-          items: filteredReports.filter((report) => report.project_id === project.id),
-        }))
-        .filter((group) => group.items.length > 0),
+        .map((project) => {
+          const projectId = project.id ?? 'unknown-project';
+          const normalizedProject = { ...project, id: projectId } as Project;
+          const projectCode = project.code || projectId.slice(0, 8);
+
+          return {
+            projectId,
+            projectName: normalizedProject.name || 'Unnamed Project',
+            projectCode,
+            monthGroups: groupReportsByMonth(
+              normalizedProject,
+              filteredReports.filter((report) => report.project_id === projectId)
+            ),
+          };
+        })
+        .filter((group) => group.monthGroups.length > 0),
     [orderedProjects, filteredReports]
   );
 
@@ -80,10 +147,93 @@ export default function Reports({
     window.open(url, '_blank');
   }
 
+  function cleanupMergedPreview() {
+    if (mergedPreviewRef.current) {
+      URL.revokeObjectURL(mergedPreviewRef.current);
+      mergedPreviewRef.current = null;
+    }
+  }
+
   function handlePreview(item: ReportPreviewItem) {
     setPreviewItem(item);
     setPreviewOpen(true);
   }
+
+  const toggleMonthGroup = (key: string) => {
+    setExpandedMonthGroups((prev) =>
+      prev.includes(key) ? prev.filter((existing) => existing !== key) : [...prev, key]
+    );
+  };
+
+  async function handleMergeGroup(group: MonthlyReportGroup, projectName: string) {
+    const downloadableReports = group.reports.filter((report) => Boolean(report.drive_link));
+    if (!downloadableReports.length) {
+      setMergeError(`No downloadable PDFs for ${group.monthLabel}.`);
+      return;
+    }
+
+    setMergeError(null);
+    if (mergingGroupKey) return;
+    setMergingGroupKey(group.key);
+    cleanupMergedPreview();
+
+    try {
+      const mergedPdf = await PDFDocument.create();
+      for (const report of downloadableReports) {
+        const response = await fetch(report.drive_link!, { mode: 'cors' });
+        if (!response.ok) {
+          throw new Error(`Unable to fetch ${report.title}`);
+        }
+        const buffer = await response.arrayBuffer();
+        const pdfDoc = await PDFDocument.load(buffer);
+        const copiedPages = await mergedPdf.copyPages(pdfDoc, pdfDoc.getPageIndices());
+        copiedPages.forEach((page) => mergedPdf.addPage(page));
+      }
+
+      const mergedBytes = await mergedPdf.save();
+      const blob = new Blob([new Uint8Array(mergedBytes)], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      mergedPreviewRef.current = url;
+      const previewItem: ReportPreviewItem = {
+        id: `${projectName || 'merged'}-${group.key}`,
+        project_id: group.projectId,
+        title: `${projectName || 'Merged Report'} • ${group.monthLabel}`,
+        date: new Date().toISOString(),
+        drive_link: url,
+        kind: 'report',
+        source: 'merged',
+      };
+      handlePreview(previewItem);
+    } catch (error) {
+      console.error('Merge failed:', error);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      setMergeError(`Failed to merge PDFs for ${group.monthLabel}: ${message}`);
+      const fallback = downloadableReports[0]?.drive_link;
+      if (fallback) {
+        window.open(fallback, '_blank');
+      }
+    } finally {
+      setMergingGroupKey(null);
+    }
+  }
+
+  const handleGroupClick = (
+    event: MouseEvent<HTMLDivElement>,
+    monthGroup: MonthlyReportGroup,
+    projectName: string,
+    primaryReport?: ReportType
+  ) => {
+    if ((event.target as Element).closest('button')) {
+      return;
+    }
+    if (monthGroup.reports.length > 1) {
+      handleMergeGroup(monthGroup, projectName);
+      return;
+    }
+    if (primaryReport) {
+      handlePreview({ ...primaryReport, kind: 'report' });
+    }
+  };
 
   const formatSourceLabel = (source?: ReportType['source']) => {
     if (source === 'monthly') return 'Monthly PDF';
@@ -189,68 +339,169 @@ export default function Reports({
               📄 REPORTS
             </h2>
 
+            {mergeError && (
+              <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
+                {mergeError}
+              </div>
+            )}
+
             <div className="space-y-6">
-              {groupedReports.map((group) => (
-                <div key={group.projectId}>
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className="px-3 py-1 rounded-full bg-indigo-100 text-indigo-700 text-xs font-black">
-                      {group.projectName}
-                    </span>
-                    <span className="text-[11px] font-semibold text-muted-foreground">
-                      {group.items.length} report{group.items.length !== 1 ? 's' : ''}
-                    </span>
-                  </div>
-
-                  <div className="space-y-3">
-                    {group.items.map((report) => {
-                      const project = projectsById.get(report.project_id);
-                      const projectIdentity = formatProjectIdentity(project);
-                      const sourceLabel = formatSourceLabel(report.source);
-                      const formattedDate = new Date(report.date).toLocaleDateString('en-GB');
-                      return (
-                        <div
-                          key={report.id}
-                          onClick={() => handlePreview({ ...report, kind: 'report' })}
-                          role="button"
-                          tabIndex={0}
-                          className="flex items-center justify-between p-4 rounded-xl hover:bg-accent transition-all duration-300 group border border-border hover:border-emerald-300 dark:hover:border-emerald-600 cursor-pointer focus-visible:outline focus-visible:ring-2 focus-visible:ring-indigo-500"
-                        >
-                          <div className="flex-1 space-y-2">
-                            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
-                              {projectIdentity}
-                            </p>
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-bold text-foreground dark:text-slate-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
-                                {report.title}
-                              </p>
-                              {sourceLabel && (
-                                <Badge className="bg-purple-50 text-purple-700 border border-purple-100 text-[11px]">
-                                  {sourceLabel}
-                                </Badge>
-                              )}
-                            </div>
-                            <p className="text-xs text-muted-foreground font-semibold">
-                              📅 {formattedDate}
-                            </p>
-                          </div>
-
-                          <Button
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              handleDownload(report.drive_link);
-                            }}
-                            disabled={!report.drive_link}
-                            className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-black shadow-lg hover:shadow-xl"
-                          >
-                            <Download className="w-4 h-4" />
-                            Downloads
-                          </Button>
+              {projectMonthlyReportGroups.map((projectGroup) => {
+                const totalReports = projectGroup.monthGroups.reduce((sum, group) => sum + group.reports.length, 0);
+                return (
+                  <div key={projectGroup.projectId} className="space-y-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-3">
+                          <span className="px-3 py-1 rounded-full bg-indigo-100 text-indigo-700 text-xs font-black">
+                            {projectGroup.projectName}
+                          </span>
+                          <span className="text-[11px] font-semibold text-muted-foreground">
+                            {totalReports} report{totalReports !== 1 ? 's' : ''}
+                          </span>
                         </div>
-                      );
-                    })}
+                        <p className="text-[11px] text-muted-foreground font-semibold mt-1">
+                          Code: {projectGroup.projectCode}
+                        </p>
+                      </div>
+                      <Badge className="bg-slate-100 text-slate-800 border border-slate-200 text-[11px]">
+                        Grouped by Month
+                      </Badge>
+                    </div>
+
+                    <div className="space-y-4">
+                      {projectGroup.monthGroups.map((monthGroup) => {
+                        const hasMultiple = monthGroup.reports.length > 1;
+                        const groupExpanded = expandedMonthGroups.includes(monthGroup.key);
+                        const primaryReport = monthGroup.reports[0];
+                        return (
+                          <div
+                            key={monthGroup.key}
+                            onClick={(event) =>
+                              handleGroupClick(event, monthGroup, projectGroup.projectName, primaryReport)
+                            }
+                            className="rounded-2xl border border-border/80 bg-card/60 p-4 shadow-sm hover:shadow-lg transition-all"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                                  {projectGroup.projectCode}
+                                </p>
+                                <p className="text-lg font-bold text-foreground">
+                                  {monthGroup.monthLabel}
+                                </p>
+                                <p className="text-xs text-muted-foreground font-semibold">
+                                  {monthGroup.reports.length} pdf{monthGroup.reports.length !== 1 ? 's' : ''} • {projectGroup.projectName}
+                                </p>
+                                {primaryReport && (
+                                  <p className="text-xs text-muted-foreground">
+                                    Latest: {primaryReport.title} • {new Date(primaryReport.date).toLocaleDateString('en-GB')}
+                                  </p>
+                                )}
+                              </div>
+
+                              <div className="flex flex-col items-end gap-2">
+                                <div className="flex flex-wrap items-center justify-end gap-2">
+                                  {hasMultiple && (
+                                    <Button
+                                      size="sm"
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        handleMergeGroup(monthGroup, projectGroup.projectName);
+                                      }}
+                                      disabled={mergingGroupKey === monthGroup.key}
+                                      className="gap-2 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-emerald-600 text-white font-black"
+                                    >
+                                      {mergingGroupKey === monthGroup.key ? 'Merging...' : 'Merge PDFs'}
+                                    </Button>
+                                  )}
+                                  {!hasMultiple && primaryReport?.drive_link && (
+                                    <Button
+                                      size="sm"
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        handleDownload(primaryReport.drive_link);
+                                      }}
+                                      className="gap-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-black"
+                                    >
+                                      Download
+                                    </Button>
+                                  )}
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      toggleMonthGroup(monthGroup.key);
+                                    }}
+                                    className="px-3 py-1 text-xs font-semibold"
+                                  >
+                                    {groupExpanded ? 'Hide PDFs' : 'Show PDFs'}
+                                  </Button>
+                                </div>
+                                <span className="text-xs font-semibold text-muted-foreground">
+                                  {hasMultiple ? 'Merged bundle' : 'Single PDF'}
+                                </span>
+                              </div>
+                            </div>
+
+                            {groupExpanded && (
+                              <div className="space-y-3 mt-4">
+                                {monthGroup.reports.map((report) => {
+                                  const project = projectsById.get(report.project_id);
+                                  const projectIdentity = formatProjectIdentity(project);
+                                  const sourceLabel = formatSourceLabel(report.source);
+                                  const formattedDate = new Date(report.date).toLocaleDateString('en-GB');
+                                  return (
+                                    <div
+                                      key={report.id}
+                                      onClick={() => handlePreview({ ...report, kind: 'report' })}
+                                      role="button"
+                                      tabIndex={0}
+                                      className="flex items-center justify-between p-3 sm:p-4 rounded-xl hover:bg-accent transition-all duration-300 group border border-border hover:border-emerald-300 dark:hover:border-emerald-600 cursor-pointer focus-visible:outline focus-visible:ring-2 focus-visible:ring-indigo-500"
+                                    >
+                                      <div className="flex-1 space-y-2">
+                                        <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                                          {projectIdentity}
+                                        </p>
+                                        <div className="flex items-center gap-2">
+                                          <p className="text-sm font-bold text-foreground dark:text-slate-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                                            {report.title}
+                                          </p>
+                                          {sourceLabel && (
+                                            <Badge className="bg-purple-50 text-purple-700 border border-purple-100 text-[11px]">
+                                              {sourceLabel}
+                                            </Badge>
+                                          )}
+                                        </div>
+                                        <p className="text-xs text-muted-foreground font-semibold">
+                                          📅 {formattedDate}
+                                        </p>
+                                      </div>
+
+                                      <Button
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          handleDownload(report.drive_link);
+                                        }}
+                                        disabled={!report.drive_link}
+                                        className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-black shadow-lg hover:shadow-xl"
+                                      >
+                                        <Download className="w-4 h-4" />
+                                        Downloads
+                                      </Button>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
 
               {(!loading && filteredReports.length === 0) && (
                 <div className="text-center text-muted-foreground font-semibold py-6">
@@ -271,7 +522,10 @@ export default function Reports({
           open={previewOpen}
           onOpenChange={(open) => {
             setPreviewOpen(open);
-            if (!open) setPreviewItem(null);
+            if (!open) {
+              setPreviewItem(null);
+              cleanupMergedPreview();
+            }
           }}
         >
           <DialogContent className="max-w-4xl">
