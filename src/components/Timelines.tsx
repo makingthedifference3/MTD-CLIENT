@@ -111,17 +111,30 @@ export default function Timelines({
   };
 
   const monthSequence = useMemo(() => {
-    const sequence: { label: string; date: Date }[] = [];
+    const sequence: { label: string; date: Date; isCurrentMonth: boolean; todayLabel?: string; markerPercent?: number }[] = [];
     const start = new Date(timelineWindow.start);
     const end = new Date(timelineWindow.end);
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth();
+    const todayLabel = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     start.setDate(1);
     end.setDate(1);
     const cursor = new Date(start);
     let guard = 0;
     while (cursor <= end && guard < 18) {
+      const isCurrentMonth = cursor.getFullYear() === currentYear && cursor.getMonth() === currentMonth;
+      const label = cursor.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+      const daysInMonth = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0).getDate();
+      const markerPercent = isCurrentMonth
+        ? ((today.getDate() - 1) / Math.max(daysInMonth - 1, 1)) * 100
+        : undefined;
       sequence.push({
-        label: cursor.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
-        date: new Date(cursor)
+        label,
+        date: new Date(cursor),
+        isCurrentMonth,
+        todayLabel: isCurrentMonth ? todayLabel : undefined,
+        markerPercent,
       });
       cursor.setMonth(cursor.getMonth() + 1);
       guard++;
@@ -131,7 +144,10 @@ export default function Timelines({
       now.setDate(1);
       sequence.push({
         label: now.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
-        date: now
+        date: now,
+        isCurrentMonth: true,
+        todayLabel,
+        markerPercent: 0,
       });
     }
     return sequence;
@@ -210,14 +226,45 @@ export default function Timelines({
 
                   return (
                     <div key={group.projectId} className={`border-b border-border ${sectionBg} bg-blue-200`}>
-                      <div className="flex border-b border-border text-muted-foreground text-xs uppercase font-semibold">
+                      <div className="flex border-b border-border text-muted-foreground text-xs uppercase font-semibold relative">
                         <div style={{ width: `${phaseColumnWidth}px` }} className="px-4 py-3">Phase name</div>
-                        <div className="flex flex-1">
-                          {months.map((month) => (
-                            <div key={`${group.projectId}-header-${month}`} className="flex-1 border-l border-border py-3 text-center">
-                              {month}
+                        <div className="flex flex-1 relative">
+                          {monthSequence.map((month, monthIndex) => (
+                            <div 
+                              key={`${group.projectId}-header-${month.label}`} 
+                              className={`flex-1 border-l border-border py-3 text-center relative ${
+                                month.isCurrentMonth ? 'bg-emerald-50 dark:bg-emerald-950/20 font-bold text-emerald-700 dark:text-emerald-400' : ''
+                              }`}
+                            >
+                              <div className="leading-5 relative z-10">{month.label}</div>
+                              {month.isCurrentMonth && month.todayLabel && (
+                                <div className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 mt-1 flex items-center justify-center gap-1.5 relative z-10">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-sm" aria-hidden />
+                                  <span>Today {month.todayLabel}</span>
+                                </div>
+                              )}
+                              {month.isCurrentMonth && (
+                                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-md" title="Current Month"></span>
+                              )}
                             </div>
                           ))}
+                          {monthSequence.map((month, monthIndex) => {
+                            if (month.isCurrentMonth && month.markerPercent !== undefined) {
+                              const monthWidth = 100 / monthSequence.length;
+                              const absoluteLeft = monthIndex * monthWidth + (month.markerPercent * monthWidth / 100);
+                              return (
+                                <div
+                                  key={`${group.projectId}-today-marker-header`}
+                                  className="absolute top-0 bottom-0 w-0.5 bg-gradient-to-b from-emerald-400 via-emerald-500 to-emerald-600 shadow-lg z-20"
+                                  style={{ left: `${absoluteLeft}%` }}
+                                  aria-label="Today's date"
+                                >
+                                  <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-emerald-500 shadow-lg ring-2 ring-white dark:ring-gray-800 animate-pulse" />
+                                </div>
+                              );
+                            }
+                            return null;
+                          })}
                         </div>
                       </div>
 
@@ -239,7 +286,7 @@ export default function Timelines({
                         const completionWidth = clampPercent((width * activity.completion_percentage) / 100, 0, width);
 
                         return (
-                          <div key={activity.id} className={`flex text-muted-foreground text-sm ${sectionBg}`}>
+                          <div key={activity.id} className={`flex text-muted-foreground text-sm ${sectionBg} relative`}>
                             <div style={{ width: `${phaseColumnWidth}px` }} className="px-4 py-4">
                               <p className="font-semibold text-card-foreground">{activity.title}</p>
                               <p className="text-xs text-muted-foreground">{activity.completion_percentage}% complete</p>
@@ -254,6 +301,22 @@ export default function Timelines({
                                     style={{ left: `${leftPercent}%` }}
                                   ></span>
                                 );
+                              })}
+
+                              {monthSequence.map((month, monthIndex) => {
+                                if (month.isCurrentMonth && month.markerPercent !== undefined) {
+                                  const monthWidth = 100 / monthSequence.length;
+                                  const absoluteLeft = monthIndex * monthWidth + (month.markerPercent * monthWidth / 100);
+                                  return (
+                                    <div
+                                      key={`${activity.id}-today-marker`}
+                                      className="absolute top-2 bottom-2 w-0.5 bg-gradient-to-b from-emerald-400 via-emerald-500 to-emerald-600 shadow-md z-40 opacity-90"
+                                      style={{ left: `${absoluteLeft}%` }}
+                                      aria-hidden
+                                    />
+                                  );
+                                }
+                                return null;
                               })}
 
                               <div

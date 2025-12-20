@@ -88,6 +88,8 @@ export default function Dashboard({
   const [modalReturnMode, setModalReturnMode] = useState<'state-selector' | 'location-selector' | null>(null);
   const canEditMetrics = Boolean(onUpdateProject && user?.role !== 'client');
   const [selectedUpdate, setSelectedUpdate] = useState<RealTimeUpdate | null>(null);
+  const [recentItemsProjectFilter, setRecentItemsProjectFilter] = useState('all');
+  const [recentUpdatesProjectFilter, setRecentUpdatesProjectFilter] = useState('all');
 
   const handleProjectGroupChange = (projectId: string) => {
     setSelectedProjectGroup(projectId);
@@ -270,6 +272,26 @@ export default function Dashboard({
       return bTime - aTime;
     });
   }, [updates, visibleProjectIds]);
+
+  const projectsWithMedia = useMemo(() => {
+    const projectIds = new Set(recentMedia.map((m) => m.project_id));
+    return projects.filter((p) => projectIds.has(p.id));
+  }, [recentMedia, projects]);
+
+  const projectsWithUpdates = useMemo(() => {
+    const projectIds = new Set(recentUpdates.map((u) => u.project_id));
+    return projects.filter((p) => projectIds.has(p.id));
+  }, [recentUpdates, projects]);
+
+  const filteredRecentUpdates = useMemo(() => {
+    if (recentUpdatesProjectFilter === 'all') return recentUpdates;
+    return recentUpdates.filter((u) => u.project_id === recentUpdatesProjectFilter);
+  }, [recentUpdates, recentUpdatesProjectFilter]);
+
+  const filteredRecentMedia = useMemo(() => {
+    if (recentItemsProjectFilter === 'all') return recentMedia;
+    return recentMedia.filter((m) => m.project_id === recentItemsProjectFilter);
+  }, [recentMedia, recentItemsProjectFilter]);
 
   const getActivityTimestamp = (activity: ProjectActivity) => {
     const rawDate = activity.updated_at ?? activity.created_at ?? activity.actual_end_date ?? activity.end_date ?? activity.start_date;
@@ -1123,15 +1145,32 @@ export default function Dashboard({
                     </div>
                     <div>
                       <CardTitle className="text-base">Recent Items</CardTitle>
-                      <CardDescription className="text-xs">{recentMedia.length} items</CardDescription>
+                      <CardDescription className="text-xs">{filteredRecentMedia.length} items</CardDescription>
                     </div>
                   </div>
-                  <Button variant="outline" size="sm" onClick={() => onNavigate?.('media')}>
-                    View All <ChevronRight className="w-4 h-4 ml-1" />
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    {projectsWithMedia.length > 0 && (
+                      <Select value={recentItemsProjectFilter} onValueChange={setRecentItemsProjectFilter}>
+                        <SelectTrigger className="w-[180px] border-2 rounded-xl">
+                          <SelectValue placeholder="All Projects" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Projects</SelectItem>
+                          {projectsWithMedia.map((project) => (
+                            <SelectItem key={project.id} value={project.id}>
+                              {formatProjectLabel(project)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    <Button variant="outline" size="sm" onClick={() => onNavigate?.('media')}>
+                      View All <ChevronRight className="w-4 h-4 ml-1" />
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  {recentMedia.length === 0 ? (
+                  {filteredRecentMedia.length === 0 ? (
                     <div className="aspect-video rounded-xl bg-muted flex items-center justify-center">
                       <div className="text-center">
                         <Image className="w-12 h-12 text-muted-foreground mx-auto mb-2" />
@@ -1139,35 +1178,43 @@ export default function Dashboard({
                       </div>
                     </div>
                   ) : (
-                    <Carousel className="w-full overflow-hidden" opts={{ watchDrag: false }} onWheel={(event) => event.preventDefault()}>
-                      <CarouselContent className="overflow-hidden">
-                        {recentMedia.map((media, index) => {
+                    <Carousel className="w-full" opts={{ loop: true }}>
+                      <CarouselContent>
+                        {filteredRecentMedia.map((media, index) => {
                           const displayTitle = media.update_title || media.title;
+                          const project = projectsById.get(media.project_id);
+                          const projectLabel = project ? formatProjectLabel(project) : 'Unknown Project';
                           return (
                           <CarouselItem key={index}>
-                            <div className="aspect-video rounded-xl overflow-hidden bg-muted">
-                              {media.drive_link ? (
-                                <iframe
-                                  src={media.drive_link}
-                                  title={displayTitle}
-                                  className="w-full h-full border-0"
-                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                  allowFullScreen
-                                />
-                              ) : (
-                                <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-sky-100 to-cyan-100 dark:from-sky-950/30 dark:to-cyan-950/30">
-                                  <Image className="w-16 h-16 text-muted-foreground mb-3" />
-                                  <p className="text-sm font-medium text-muted-foreground">{displayTitle}</p>
-                                </div>
-                              )}
+                            <div className="space-y-3">
+                              <div className="aspect-video rounded-xl overflow-hidden bg-muted shadow-lg">
+                                {media.drive_link ? (
+                                  <iframe
+                                    src={media.drive_link}
+                                    title={displayTitle}
+                                    className="w-full h-full border-0"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                    allowFullScreen
+                                  />
+                                ) : (
+                                  <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-sky-100 to-cyan-100 dark:from-sky-950/30 dark:to-cyan-950/30">
+                                    <Image className="w-16 h-16 text-muted-foreground mb-3" />
+                                    <p className="text-sm font-medium text-muted-foreground">{displayTitle}</p>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="px-2">
+                                <p className="text-sm font-semibold text-foreground line-clamp-1">{displayTitle || 'Untitled'}</p>
+                                <p className="text-xs text-muted-foreground">{projectLabel}</p>
+                              </div>
                             </div>
                           </CarouselItem>
                         );})}
                       </CarouselContent>
-                      {recentMedia.length > 1 && (
+                      {filteredRecentMedia.length > 1 && (
                         <>
-                          <CarouselPrevious className="left-2" />
-                          <CarouselNext className="right-2" />
+                          <CarouselPrevious className="-left-4" />
+                          <CarouselNext className="-right-4" />
                         </>
                       )}
                     </Carousel>
@@ -1394,15 +1441,32 @@ export default function Dashboard({
                   </div>
                   <div>
                     <CardTitle className="text-lg">Real-Time Updates</CardTitle>
-                    <CardDescription className="text-xs">{recentUpdates.length} items</CardDescription>
+                    <CardDescription className="text-xs">{filteredRecentUpdates.length} items</CardDescription>
                   </div>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => onNavigate?.('reports')}>
-                  View All <ChevronRight className="w-4 h-4 ml-1" />
-                </Button>
+                <div className="flex items-center gap-2">
+                  {projectsWithUpdates.length > 0 && (
+                    <Select value={recentUpdatesProjectFilter} onValueChange={setRecentUpdatesProjectFilter}>
+                      <SelectTrigger className="w-[180px] border-2 rounded-xl">
+                        <SelectValue placeholder="All Projects" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Projects</SelectItem>
+                        {projectsWithUpdates.map((project) => (
+                          <SelectItem key={project.id} value={project.id}>
+                            {formatProjectLabel(project)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  <Button variant="outline" size="sm" onClick={() => onNavigate?.('reports')}>
+                    View All <ChevronRight className="w-4 h-4 ml-1" />
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
-                {recentUpdates.length === 0 ? (
+                {filteredRecentUpdates.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-8 text-center">
                     <FileText className="w-12 h-12 text-muted-foreground/50 mb-3" />
                     <p className="text-sm font-medium text-muted-foreground">No updates available</p>
@@ -1412,7 +1476,7 @@ export default function Dashboard({
                   <div className="space-y-3">
                     <ScrollArea className="max-h-[420px] pr-2">
                       <div className="space-y-3">
-                        {recentUpdates.slice(0, 4).map((update) => {
+                        {filteredRecentUpdates.slice(0, 5).map((update) => {
                           const project = projectsById.get(update.project_id);
                           const projectIdentity = formatProjectIdentity(project);
                           const updateDate = update.date
@@ -1457,7 +1521,7 @@ export default function Dashboard({
                         })}
                       </div>
                     </ScrollArea>
-                    {recentUpdates.length > 4 && (
+                    {filteredRecentUpdates.length > 5 && (
                       <Button variant="outline" size="sm" className="w-full" onClick={() => onNavigate?.('reports')}>
                         View All Updates <ChevronRight className="w-4 h-4 ml-1" />
                       </Button>
