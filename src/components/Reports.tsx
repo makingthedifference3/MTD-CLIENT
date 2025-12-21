@@ -9,6 +9,7 @@ import ProjectFilterBar from './ProjectFilterBar';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 interface ReportsProps {
   projects: Array<Partial<Project>>;
@@ -26,10 +27,10 @@ type ReportPreviewItem =
   | (RealTimeUpdate & { kind: 'update' })
   | (ReportType & { kind: 'report' });
 
-interface MonthlyReportGroup {
+interface ReportPeriodGroup {
   key: string;
   projectId: string;
-  monthLabel: string;
+  periodLabel: string;
   latestTimestamp: number;
   reports: ReportType[];
 }
@@ -43,26 +44,39 @@ const parseReportDate = (value?: string) => {
 const formatMonthLabel = (date: Date) =>
   date.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
 
-const groupReportsByMonth = (project: Project, reports: ReportType[]): MonthlyReportGroup[] => {
-  const groups = new Map<string, MonthlyReportGroup>();
+const formatQuarterLabel = (year: number, quarter: number) => `Q${quarter} ${year}`;
+
+type ReportGrouping = 'month' | 'quarter';
+
+type ReportMode = 'monthly' | 'quarterly' | 'custom';
+
+const groupReportsByPeriod = (project: Project, reports: ReportType[], grouping: ReportGrouping): ReportPeriodGroup[] => {
+  const groups = new Map<string, ReportPeriodGroup>();
 
   reports.forEach((report) => {
     const parsed = parseReportDate(report.date);
     const year = parsed.getFullYear();
     const month = parsed.getMonth();
-    const monthKey = `${project.id}-${year}-${month}`;
+    const quarter = Math.floor(month / 3) + 1;
 
-    const existing = groups.get(monthKey);
+    const groupKey = grouping === 'quarter'
+      ? `${project.id}-${year}-Q${quarter}`
+      : `${project.id}-${year}-${month}`;
+    const groupLabel = grouping === 'quarter'
+      ? formatQuarterLabel(year, quarter)
+      : formatMonthLabel(parsed);
+
+    const existing = groups.get(groupKey);
     if (existing) {
       existing.reports.push(report);
       existing.latestTimestamp = Math.max(existing.latestTimestamp, parsed.getTime());
       return;
     }
 
-    groups.set(monthKey, {
-      key: monthKey,
+    groups.set(groupKey, {
+      key: groupKey,
       projectId: project.id,
-      monthLabel: formatMonthLabel(parsed),
+      periodLabel: groupLabel,
       latestTimestamp: parsed.getTime(),
       reports: [report],
     });
@@ -76,6 +90,37 @@ const groupReportsByMonth = (project: Project, reports: ReportType[]): MonthlyRe
         .sort((a, b) => parseReportDate(b.date).getTime() - parseReportDate(a.date).getTime()),
     }))
     .sort((a, b) => b.latestTimestamp - a.latestTimestamp);
+};
+
+const formatRangeLabel = (fromISO?: string, toISO?: string) => {
+  const from = fromISO ? new Date(fromISO) : null;
+  const to = toISO ? new Date(toISO) : null;
+  const safe = (d: Date) => (Number.isNaN(d.getTime()) ? null : d);
+  const fromSafe = from ? safe(from) : null;
+  const toSafe = to ? safe(to) : null;
+  const fromLabel = fromSafe ? fromSafe.toLocaleDateString('en-GB') : 'Start';
+  const toLabel = toSafe ? toSafe.toLocaleDateString('en-GB') : 'End';
+  return `${fromLabel} - ${toLabel}`;
+};
+
+const groupReportsByCustomRange = (
+  project: Project,
+  reports: ReportType[],
+  fromISO?: string,
+  toISO?: string
+): ReportPeriodGroup[] => {
+  if (!reports.length) return [];
+  const label = formatRangeLabel(fromISO, toISO);
+  const latestTimestamp = Math.max(...reports.map((r) => parseReportDate(r.date).getTime()));
+  return [
+    {
+      key: `${project.id}-custom-${fromISO ?? 'start'}-${toISO ?? 'end'}`,
+      projectId: project.id,
+      periodLabel: label,
+      latestTimestamp,
+      reports: reports.slice().sort((a, b) => parseReportDate(b.date).getTime() - parseReportDate(a.date).getTime()),
+    },
+  ];
 };
 
 export default function Reports({
@@ -94,10 +139,37 @@ export default function Reports({
   const [mergingGroupKey, setMergingGroupKey] = useState<string | null>(null);
   const [mergeError, setMergeError] = useState<string | null>(null);
   const [expandedMonthGroups, setExpandedMonthGroups] = useState<string[]>([]);
+  const [reportMode, setReportMode] = useState<ReportMode>('monthly');
+  const [reportFromDate, setReportFromDate] = useState<string>('');
+  const [reportToDate, setReportToDate] = useState<string>('');
   const mergedPreviewRef = useRef<string | null>(null);
 
   const filteredUpdates = updates.filter((u) => projectFilters.visibleProjectIds.includes(u.project_id));
-  const filteredReports = reports.filter((r) => projectFilters.visibleProjectIds.includes(r.project_id));
+
+  const baseReports = reports.filter((r) => projectFilters.visibleProjectIds.includes(r.project_id));
+
+  const isCustomMode = reportMode === 'custom';
+  const reportDateRangeSelected = isCustomMode && Boolean(reportFromDate || reportToDate);
+  const reportMergeEnabled = reportMode !== 'custom' || Boolean(reportFromDate && reportToDate);
+
+  const filteredReports = useMemo(() => {
+    if (!isCustomMode) return baseReports;
+    if (!reportDateRangeSelected) return baseReports;
+
+    const from = reportFromDate ? new Date(reportFromDate) : null;
+    const to = reportToDate ? new Date(reportToDate) : null;
+
+    const normalize = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+    const fromTs = from ? normalize(from) : null;
+    const toTs = to ? normalize(to) : null;
+
+    return baseReports.filter((report) => {
+      const reportTs = normalize(parseReportDate(report.date));
+      if (fromTs !== null && reportTs < fromTs) return false;
+      if (toTs !== null && reportTs > toTs) return false;
+      return true;
+    });
+  }, [baseReports, isCustomMode, reportDateRangeSelected, reportFromDate, reportToDate]);
   const singleProjectSelected = projectFilters.selectedProjectGroup !== 'all' && projectFilters.filteredProjects.length === 1;
   const currentProjectName = singleProjectSelected ? projectFilters.filteredProjects[0].name : null;
 
@@ -128,18 +200,25 @@ export default function Reports({
           const normalizedProject = { ...project, id: projectId } as Project;
           const projectCode = project.code || projectId.slice(0, 8);
 
+          const projectReports = filteredReports.filter((report) => report.project_id === projectId);
+
+          const monthGroups = reportMode === 'custom'
+            ? groupReportsByCustomRange(normalizedProject, projectReports, reportFromDate, reportToDate)
+            : groupReportsByPeriod(
+              normalizedProject,
+              projectReports,
+              reportMode === 'quarterly' ? 'quarter' : 'month'
+            );
+
           return {
             projectId,
             projectName: normalizedProject.name || 'Unnamed Project',
             projectCode,
-            monthGroups: groupReportsByMonth(
-              normalizedProject,
-              filteredReports.filter((report) => report.project_id === projectId)
-            ),
+            monthGroups,
           };
         })
         .filter((group) => group.monthGroups.length > 0),
-    [orderedProjects, filteredReports]
+    [orderedProjects, filteredReports, reportFromDate, reportMode, reportToDate]
   );
 
   function handleDownload(url?: string) {
@@ -165,10 +244,15 @@ export default function Reports({
     );
   };
 
-  async function handleMergeGroup(group: MonthlyReportGroup, projectName: string) {
+  async function handleMergeGroup(group: ReportPeriodGroup, projectName: string) {
+    if (!reportMergeEnabled) {
+      setMergeError('Select a From and To date for Custom Range merging.');
+      return;
+    }
+
     const downloadableReports = group.reports.filter((report) => Boolean(report.drive_link));
     if (!downloadableReports.length) {
-      setMergeError(`No downloadable PDFs for ${group.monthLabel}.`);
+      setMergeError(`No downloadable PDFs for ${group.periodLabel}.`);
       return;
     }
 
@@ -197,7 +281,7 @@ export default function Reports({
       const previewItem: ReportPreviewItem = {
         id: `${projectName || 'merged'}-${group.key}`,
         project_id: group.projectId,
-        title: `${projectName || 'Merged Report'} • ${group.monthLabel}`,
+        title: `${projectName || 'Merged Report'} • ${group.periodLabel}`,
         date: new Date().toISOString(),
         drive_link: url,
         kind: 'report',
@@ -207,7 +291,7 @@ export default function Reports({
     } catch (error) {
       console.error('Merge failed:', error);
       const message = error instanceof Error ? error.message : 'Unknown error';
-      setMergeError(`Failed to merge PDFs for ${group.monthLabel}: ${message}`);
+      setMergeError(`Failed to merge PDFs for ${group.periodLabel}: ${message}`);
       const fallback = downloadableReports[0]?.drive_link;
       if (fallback) {
         window.open(fallback, '_blank');
@@ -219,14 +303,14 @@ export default function Reports({
 
   const handleGroupClick = (
     event: MouseEvent<HTMLDivElement>,
-    monthGroup: MonthlyReportGroup,
+    monthGroup: ReportPeriodGroup,
     projectName: string,
     primaryReport?: ReportType
   ) => {
     if ((event.target as Element).closest('button')) {
       return;
     }
-    if (monthGroup.reports.length > 1) {
+    if (monthGroup.reports.length > 1 && reportMergeEnabled) {
       handleMergeGroup(monthGroup, projectName);
       return;
     }
@@ -305,6 +389,16 @@ export default function Reports({
                             <p className="text-sm font-bold text-foreground dark:text-slate-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
                               {update.title} - {formattedDate}
                             </p>
+                            {update.description && (
+                              <p className="text-xs text-muted-foreground line-clamp-2">
+                                {update.description}
+                              </p>
+                            )}
+                            {project?.description && (
+                              <p className="text-xs text-muted-foreground/80 line-clamp-2">
+                                {project.description}
+                              </p>
+                            )}
                           </div>
 
                           {update.is_downloadable && update.drive_link && (
@@ -339,6 +433,45 @@ export default function Reports({
               📄 REPORTS
             </h2>
 
+            <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
+              <div className="space-y-1">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Mode</p>
+                <Select value={reportMode} onValueChange={(value) => setReportMode(value as ReportMode)}>
+                  <SelectTrigger className="w-[190px] rounded-xl">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="quarterly">Quarterly</SelectItem>
+                    <SelectItem value="custom">Custom Range</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {isCustomMode && (
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="space-y-1">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">From</p>
+                    <input
+                      type="date"
+                      value={reportFromDate}
+                      onChange={(e) => setReportFromDate(e.target.value)}
+                      className="h-10 rounded-xl border border-border bg-background px-3 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">To</p>
+                    <input
+                      type="date"
+                      value={reportToDate}
+                      onChange={(e) => setReportToDate(e.target.value)}
+                      className="h-10 rounded-xl border border-border bg-background px-3 text-sm"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
             {mergeError && (
               <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
                 {mergeError}
@@ -365,7 +498,11 @@ export default function Reports({
                         </p>
                       </div>
                       <Badge className="bg-slate-100 text-slate-800 border border-slate-200 text-[11px]">
-                        Grouped by Month
+                        {reportMode === 'custom'
+                          ? 'Custom Range'
+                          : reportMode === 'quarterly'
+                          ? 'Grouped by Quarter'
+                          : 'Grouped by Month'}
                       </Badge>
                     </div>
 
@@ -388,7 +525,7 @@ export default function Reports({
                                   {projectGroup.projectCode}
                                 </p>
                                 <p className="text-lg font-bold text-foreground">
-                                  {monthGroup.monthLabel}
+                                  {monthGroup.periodLabel}
                                 </p>
                                 <p className="text-xs text-muted-foreground font-semibold">
                                   {monthGroup.reports.length} pdf{monthGroup.reports.length !== 1 ? 's' : ''} • {projectGroup.projectName}
@@ -409,7 +546,7 @@ export default function Reports({
                                         event.stopPropagation();
                                         handleMergeGroup(monthGroup, projectGroup.projectName);
                                       }}
-                                      disabled={mergingGroupKey === monthGroup.key}
+                                      disabled={mergingGroupKey === monthGroup.key || !reportMergeEnabled}
                                       className="gap-2 bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-emerald-600 text-white font-black"
                                     >
                                       {mergingGroupKey === monthGroup.key ? 'Merging...' : 'Merge PDFs'}

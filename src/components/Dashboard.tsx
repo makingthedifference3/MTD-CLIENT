@@ -39,7 +39,7 @@ interface DashboardProps {
   onSelectState?: (state: string) => void;
 }
 
-type SelectOption = { value: string; label: string };
+type SelectOption = { value: string; label: string; description?: string };
 
 interface DashboardMetrics {
   beneficiaries: { current: number; target: number };
@@ -171,7 +171,11 @@ export default function Dashboard({
         filtered = filtered.filter((project) => project.state === selectedState);
       }
       return filtered
-        .map((project) => ({ value: project.id, label: formatProjectLabel(project) }))
+        .map((project) => ({
+          value: project.id,
+          label: formatProjectLabel(project),
+          description: project.description ?? undefined,
+        }))
         .sort((a, b) => a.label.localeCompare(b.label));
     },
     [projects, selectedState, selectedSubcompany]
@@ -1605,6 +1609,11 @@ export default function Dashboard({
                                     {update.description}
                                   </p>
                                 )}
+                                {project?.description && (
+                                  <p className="text-xs text-muted-foreground/80 line-clamp-2">
+                                    {project.description}
+                                  </p>
+                                )}
                                 {/* <p className="text-[11px] text-muted-foreground">Click anywhere on the card to view details</p> */}
                               </CardContent>
                             </Card>
@@ -1647,6 +1656,11 @@ export default function Dashboard({
                       <p className="text-xl font-semibold text-foreground">
                         {selectedUpdate?.title || 'Project Update'}
                       </p>
+                      {selectedUpdateProject?.description && (
+                        <p className="text-sm text-muted-foreground whitespace-pre-line">
+                          {selectedUpdateProject.description}
+                        </p>
+                      )}
                       {selectedUpdate?.description && (
                         <p className="text-sm text-muted-foreground whitespace-pre-line">
                           {selectedUpdate.description}

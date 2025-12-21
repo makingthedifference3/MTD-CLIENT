@@ -176,6 +176,9 @@ CREATE TABLE public.calendar_events (
   updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
   created_by uuid,
   updated_by uuid,
+  start_date date,
+  end_date date,
+  itenary_url text,
   CONSTRAINT calendar_events_pkey PRIMARY KEY (id),
   CONSTRAINT calendar_events_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id),
   CONSTRAINT calendar_events_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.tasks(id),
@@ -526,6 +529,15 @@ CREATE TABLE public.media_articles (
   CONSTRAINT media_articles_csr_parter_id_fkey FOREIGN KEY (csr_parter_id) REFERENCES public.csr_partners(id),
   CONSTRAINT media_articles_toll_id_fkey FOREIGN KEY (toll_id) REFERENCES public.csr_partner_tolls(id)
 );
+CREATE TABLE public.merchant (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  merchant_name text,
+  beneficiary_name text,
+  email text UNIQUE,
+  phone text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT merchant_pkey PRIMARY KEY (id)
+);
 CREATE TABLE public.notifications (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL,
@@ -611,11 +623,7 @@ CREATE TABLE public.project_expenses (
   project_id uuid NOT NULL,
   category_id uuid NOT NULL,
   task_id uuid,
-  merchant_name character varying,
-  merchant_contact character varying,
-  merchant_address text,
-  merchant_gstin character varying,
-  merchant_pan character varying,
+  merchant_id uuid,
   date date NOT NULL,
   category character varying,
   sub_category character varying,
@@ -668,6 +676,8 @@ CREATE TABLE public.project_expenses (
   toll_id uuid,
   budget_category_id uuid,
   has_bills boolean DEFAULT false,
+  Bank text,
+  expense_date date,
   CONSTRAINT project_expenses_pkey PRIMARY KEY (id),
   CONSTRAINT project_expenses_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id),
   CONSTRAINT project_expenses_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.expense_categories(id),
@@ -680,7 +690,8 @@ CREATE TABLE public.project_expenses (
   CONSTRAINT project_expenses_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id),
   CONSTRAINT project_expenses_csr_partner_id_fkey FOREIGN KEY (csr_partner_id) REFERENCES public.csr_partners(id),
   CONSTRAINT project_expenses_toll_id_fkey FOREIGN KEY (toll_id) REFERENCES public.csr_partner_tolls(id),
-  CONSTRAINT project_expenses_budget_category_id_fkey FOREIGN KEY (budget_category_id) REFERENCES public.budget_categories(id)
+  CONSTRAINT project_expenses_budget_category_id_fkey FOREIGN KEY (budget_category_id) REFERENCES public.budget_categories(id),
+  CONSTRAINT project_expenses_merchant_id_fkey FOREIGN KEY (merchant_id) REFERENCES public.merchant(id)
 );
 CREATE TABLE public.project_team_members (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

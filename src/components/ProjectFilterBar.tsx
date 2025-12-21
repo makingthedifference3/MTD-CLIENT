@@ -81,8 +81,15 @@ export default function ProjectFilterBar({
             <SelectContent>
               <SelectItem value="all">All Projects</SelectItem>
               {projectGroupOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
+                <SelectItem key={option.value} value={option.value} className="group">
+                  <div className="flex flex-col">
+                    <span>{option.label}</span>
+                    {option.description && (
+                      <span className="mt-1 hidden text-xs text-muted-foreground group-hover:block">
+                        {option.description}
+                      </span>
+                    )}
+                  </div>
                 </SelectItem>
               ))}
             </SelectContent>

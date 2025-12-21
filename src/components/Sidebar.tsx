@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Home, Clock, FileText, FileBarChart, Image, Newspaper, ChevronDown, LogOut, Building2 } from 'lucide-react';
+import { Home, Clock, FileText, FileBarChart, Image, Newspaper, ChevronDown, LogOut, Building2, CalendarDays } from 'lucide-react';
 import CompanyLogo from './CompanyLogo';
 
 interface SubcompanyOption {
@@ -59,6 +59,7 @@ export default function Sidebar({
   const menuItems = [
     { id: 'dashboard', label: 'DASHBOARD', icon: Home },
     { id: 'timelines', label: 'TIMELINES', icon: Clock },
+    { id: 'calendar', label: 'PROJECT EVENTS', icon: CalendarDays },
     { id: 'accounts', label: 'ACCOUNTS', icon: FileBarChart },
     { id: 'reports', label: 'REPORTS', icon: FileText },
     { id: 'media', label: 'MEDIA', icon: Image },

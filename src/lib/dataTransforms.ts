@@ -4,7 +4,8 @@ import type {
   Report,
   RealTimeUpdate,
   Media,
-  Article
+  Article,
+  CalendarEvent
 } from '../types/csr';
 
 interface ProjectMetricValue {
@@ -98,6 +99,7 @@ interface MediaArticleRow {
   id: string;
   project_id: string | null;
   title?: string | null;
+  description?: string | null;
   media_type?: string | null;
   category?: string | null;
   news_channel?: string | null;
@@ -113,6 +115,20 @@ interface MediaArticleRow {
   is_downloadable?: boolean | null;
   update_id?: string | null;
   update_title?: string | null;
+}
+
+interface CalendarEventRow {
+  id: string;
+  project_id: string | null;
+  title?: string | null;
+  description?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  event_date?: string | null;
+  event_type?: string | null;
+  location?: string | null;
+  venue?: string | null;
+  itenary_url?: string | null;
 }
 
 const toISODate = (input?: string | null) => {
@@ -308,6 +324,7 @@ export const splitMediaArticles = (rows: MediaArticleRow[]): {
     const mediaType = row.media_type?.toLowerCase();
     const baseDate = toISODate(row.captured_at ?? row.event_date ?? row.date);
     const title = safeString(row.title, 'Media Asset');
+    const description = typeof row.description === 'string' ? row.description : undefined;
 
     // Articles: newspaper_cutting, article, document, report, pdf, certificate
     const isArticleType = mediaType === 'newspaper_cutting'
@@ -325,6 +342,7 @@ export const splitMediaArticles = (rows: MediaArticleRow[]): {
         id: row.id,
         project_id: row.project_id as string,
         title,
+        description,
         type: mediaType === 'video' ? 'video' : 'photo',
         date: baseDate,
         is_geo_tagged: Boolean(row.is_geo_tagged),
@@ -340,6 +358,7 @@ export const splitMediaArticles = (rows: MediaArticleRow[]): {
         id: row.id,
         project_id: row.project_id as string,
         title,
+        description,
         date: baseDate,
         is_featured: Boolean(row.is_featured),
         drive_link: row.article_url || row.drive_link || '',
@@ -351,3 +370,23 @@ export const splitMediaArticles = (rows: MediaArticleRow[]): {
 
   return { media, articles };
 };
+
+export const mapCalendarEvents = (rows: CalendarEventRow[]): CalendarEvent[] =>
+  rows
+    .filter((row) => row.id && row.project_id)
+    .map((row) => {
+      const fallbackDate = row.event_date ?? row.start_date ?? row.end_date;
+      return {
+        id: row.id,
+        project_id: row.project_id as string,
+        title: safeString(row.title, 'Event'),
+        description: row.description ?? undefined,
+        start_date: toNullableISODate(row.start_date ?? fallbackDate),
+        end_date: toNullableISODate(row.end_date ?? row.start_date ?? fallbackDate),
+        event_date: toNullableISODate(row.event_date),
+        event_type: row.event_type ?? undefined,
+        location: row.location ?? undefined,
+        venue: row.venue ?? undefined,
+        itenary_url: row.itenary_url ?? undefined,
+      };
+    });

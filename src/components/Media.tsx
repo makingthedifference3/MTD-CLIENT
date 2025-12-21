@@ -153,6 +153,16 @@ export default function Media({
                               {photo.is_geo_tagged && '📍 '}
                               {photo.title} - {formattedDate}
                             </p>
+                            {photo.description && (
+                              <p className="text-xs text-muted-foreground line-clamp-2">
+                                {photo.description}
+                              </p>
+                            )}
+                            {project?.description && (
+                              <p className="text-xs text-muted-foreground/80 line-clamp-2">
+                                {project.description}
+                              </p>
+                            )}
                           </div>
                           <Button
                             onClick={(event) => {
@@ -221,6 +231,16 @@ export default function Media({
                               {video.is_geo_tagged && '📍 '}
                               {displayTitle} - {formattedDate}
                             </p>
+                            {video.description && (
+                              <p className="text-xs text-muted-foreground line-clamp-2">
+                                {video.description}
+                              </p>
+                            )}
+                            {project?.description && (
+                              <p className="text-xs text-muted-foreground/80 line-clamp-2">
+                                {project.description}
+                              </p>
+                            )}
                           </div>
                           <Button
                             onClick={(event) => {

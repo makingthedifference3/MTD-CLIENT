@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import type { Project } from '../types/csr';
 
-export type SelectOption = { value: string; label: string };
+export type SelectOption = { value: string; label: string; description?: string };
 
 export const formatProjectLabel = (project: Partial<Project>): string => {
   const rawCode = project.project_code || project.code;
@@ -70,7 +70,11 @@ export function useProjectFilters({
   const projectGroupOptions = useMemo<SelectOption[]>(
     () =>
       projects
-        .map((project) => ({ value: project.id, label: formatProjectLabel(project) }))
+        .map((project) => ({
+          value: project.id,
+          label: formatProjectLabel(project),
+          description: project.description ?? undefined,
+        }))
         .sort((a, b) => a.label.localeCompare(b.label)),
     [projects]
   );

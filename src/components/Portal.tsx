@@ -7,6 +7,7 @@ import type {
   RealTimeUpdate,
   Media as MediaAsset,
   Article as ArticleAsset,
+  CalendarEvent,
   Toll,
   ProjectActivity,
   ProjectActivityItem,
@@ -18,6 +19,7 @@ import {
   mapReports,
   mapUpdates,
   splitMediaArticles,
+  mapCalendarEvents,
 } from '../lib/dataTransforms';
 import Sidebar from './Sidebar';
 import Dashboard from './Dashboard';
@@ -26,6 +28,7 @@ import Accounts from './Accounts';
 import Reports from './Reports';
 import MediaGallery from './Media';
 import ArticleHighlights from './Article';
+import Calendar from './Calendar';
 import { useProjectFilters } from '../lib/projectFilters';
 import { getBrandColors, getCompanyLogo } from '../lib/logodev';
 import { LogOut } from 'lucide-react';
@@ -41,6 +44,7 @@ interface PartnerCollections {
   mediaPhotos: MediaAsset[];
   mediaVideos: MediaAsset[];
   articles: ArticleAsset[];
+  calendarEvents: CalendarEvent[];
 }
 
 export default function Portal() {
@@ -66,6 +70,7 @@ export default function Portal() {
     mediaPhotos: [],
     mediaVideos: [],
     articles: [],
+    calendarEvents: [],
   });
 
   useEffect(() => {
@@ -114,9 +119,10 @@ export default function Portal() {
         let mediaPhotos: MediaAsset[] = [];
         let mediaVideos: MediaAsset[] = [];
         let mappedArticles: ArticleAsset[] = [];
+        let mappedCalendarEvents: CalendarEvent[] = [];
 
         if (projectIds.length) {
-          const [timelineRes, activitiesRes, reportsRes, updatesRes, mediaRes, tempReportsRes, mergedReportsRes] = await Promise.all([
+          const [timelineRes, activitiesRes, reportsRes, updatesRes, mediaRes, tempReportsRes, mergedReportsRes, calendarRes] = await Promise.all([
             supabase.from('timelines').select('*').in('project_id', projectIds),
             supabase.from('project_activities').select(`
               *,
@@ -127,6 +133,7 @@ export default function Portal() {
             supabase.from('media_articles').select('*').in('project_id', projectIds),
             supabase.from('real_time_temp').select('*').in('project_id', projectIds),
             supabase.from('real_time_merged_reports').select('*').in('project_id', projectIds),
+            supabase.from('calendar_events').select('*').in('project_id', projectIds),
           ]);
 
           if (timelineRes.error) throw timelineRes.error;
@@ -136,6 +143,7 @@ export default function Portal() {
           if (mediaRes.error) throw mediaRes.error;
           if (tempReportsRes.error) throw tempReportsRes.error;
           if (mergedReportsRes.error) throw mergedReportsRes.error;
+          if (calendarRes.error) throw calendarRes.error;
 
           mappedTimelines = mapTimelines(timelineRes.data ?? []);
           
@@ -234,6 +242,8 @@ export default function Portal() {
           mediaPhotos = mediaSplit.media.filter((asset) => asset.type === 'photo');
           mediaVideos = mediaSplit.media.filter((asset) => asset.type === 'video');
           mappedArticles = mediaSplit.articles;
+
+          mappedCalendarEvents = mapCalendarEvents(calendarRes.data ?? []);
         }
 
         if (cancelled) return;
@@ -247,6 +257,7 @@ export default function Portal() {
           mediaPhotos,
           mediaVideos,
           articles: mappedArticles,
+          calendarEvents: mappedCalendarEvents,
         });
         setSelectedProject(null);
       } catch (error: unknown) {
@@ -366,6 +377,8 @@ export default function Portal() {
         return 'Media Gallery';
       case 'article':
         return 'News Articles';
+      case 'calendar':
+        return 'Project Events';
       default:
         return 'Projects';
     }
@@ -533,6 +546,19 @@ export default function Portal() {
                 projects={visibleProjects}
                 articles={collections.articles}
                 videos={collections.mediaVideos}
+                projectFilters={projectFilters}
+                brandColors={brandColors}
+                loading={dataLoading}
+                subcompanyOptions={availableSubcompanyOptions}
+                selectedSubcompany={selectedSubcompany}
+                onSubcompanyChange={subcompanyChangeHandler}
+              />
+            )}
+
+            {currentView === 'calendar' && (
+              <Calendar
+                projects={visibleProjects}
+                events={collections.calendarEvents}
                 projectFilters={projectFilters}
                 brandColors={brandColors}
                 loading={dataLoading}

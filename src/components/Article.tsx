@@ -149,6 +149,16 @@ export default function Article({
                             <p className="text-sm font-semibold text-foreground group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">
                               {displayTitle} - {formattedDate}
                             </p>
+                            {article.description && (
+                              <p className="text-xs text-muted-foreground line-clamp-2">
+                                {article.description}
+                              </p>
+                            )}
+                            {project?.description && (
+                              <p className="text-xs text-muted-foreground/80 line-clamp-2">
+                                {project.description}
+                              </p>
+                            )}
                           </div>
 
                         <div className="flex items-center gap-2 flex-shrink-0">
@@ -216,6 +226,16 @@ export default function Article({
                             <p className="text-sm font-semibold text-foreground group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
                               {displayTitle} - {formattedDate}
                             </p>
+                            {video.description && (
+                              <p className="text-xs text-muted-foreground line-clamp-2">
+                                {video.description}
+                              </p>
+                            )}
+                            {project?.description && (
+                              <p className="text-xs text-muted-foreground/80 line-clamp-2">
+                                {project.description}
+                              </p>
+                            )}
                           </div>
 
                         <div className="flex items-center gap-2 flex-shrink-0">

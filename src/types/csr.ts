@@ -141,6 +141,20 @@ export interface Report {
   source?: 'report' | 'monthly' | 'merged';
 }
 
+export interface CalendarEvent {
+  id: string;
+  project_id: string;
+  title: string;
+  description?: string;
+  start_date?: string;
+  end_date?: string;
+  event_date?: string;
+  event_type?: string;
+  location?: string;
+  venue?: string;
+  itenary_url?: string;
+}
+
 export interface RealTimeUpdate {
   id: string;
   project_id: string;
@@ -156,6 +170,7 @@ export interface Media {
   id: string;
   project_id: string;
   title: string;
+  description?: string;
   type: 'photo' | 'video';
   date: string;
   is_geo_tagged: boolean;
@@ -169,6 +184,7 @@ export interface Article {
   id: string;
   project_id: string;
   title: string;
+  description?: string;
   date: string;
   is_featured: boolean;
   drive_link: string;
