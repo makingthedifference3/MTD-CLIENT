@@ -98,7 +98,7 @@ export default function Portal() {
         // Fetch Tolls
         const { data: tollRows, error: tollError } = await supabase
           .from('csr_partner_tolls')
-          .select('id, toll_name, csr_partner_id')
+          .select('id, toll_name, csr_partner_id, state')
           .eq('csr_partner_id', partnerId);
         
         if (tollError) console.error('Error fetching tolls:', tollError);
@@ -277,6 +277,16 @@ export default function Portal() {
     [tolls, ownedSubcompanyId]
   );
   const subcompanyFilterEnabled = !ownedSubcompanyId && subcompanyOptions.length > 0;
+  const subcompanyStateLookup = useMemo<Record<string, string | undefined>>(() => {
+    const lookup: Record<string, string | undefined> = {};
+    tolls.forEach((toll) => {
+      if (toll.id) {
+        const cleaned = toll.state?.trim();
+        lookup[toll.id] = cleaned && cleaned.length ? cleaned : undefined;
+      }
+    });
+    return lookup;
+  }, [tolls]);
 
   useEffect(() => {
     setSelectedSubcompany((prev) => {
@@ -321,12 +331,25 @@ export default function Portal() {
   const projectFilters = useProjectFilters({
     projects: filteredBySubcompany,
     selectedProjectId: selectedProject,
+    selectedSubcompany,
+    subcompanyStateLookup,
     onSubcompanyChange: setSelectedSubcompany,
   });
 
   const subcompanyChangeHandler = subcompanyFilterEnabled ? setSelectedSubcompany : undefined;
 
   const currentProject = collections.projects.find((p) => p.id === selectedProject);
+  const availableSubcompanyOptions = useMemo(() => {
+    const projectSubcompanyId = currentProject?.toll_id;
+    if (!projectSubcompanyId) return subcompanyOptions;
+    return subcompanyOptions.filter((option) => option.value === projectSubcompanyId);
+  }, [currentProject?.toll_id, subcompanyOptions]);
+
+  useEffect(() => {
+    const projectSubcompanyId = currentProject?.toll_id;
+    if (!projectSubcompanyId) return;
+    setSelectedSubcompany((prev) => (prev === projectSubcompanyId ? prev : projectSubcompanyId));
+  }, [currentProject?.toll_id]);
   const brandColors = partner ? getBrandColors(partner.primary_color || '#059669') : null;
 
   const viewLabel = (() => {
@@ -376,7 +399,7 @@ export default function Portal() {
       <Sidebar
         currentView={currentView}
         onViewChange={handleViewChange}
-        subcompanyOptions={subcompanyOptions}
+        subcompanyOptions={availableSubcompanyOptions}
         selectedSubcompany={selectedSubcompany}
         onSubcompanyChange={subcompanyChangeHandler}
       />
@@ -445,7 +468,7 @@ export default function Portal() {
                 updates={collections.updates}
                 activities={collections.activities}
                 onNavigate={handleViewChange}
-                subcompanyOptions={subcompanyOptions}
+                subcompanyOptions={availableSubcompanyOptions}
                 selectedSubcompany={selectedSubcompany}
                 onSubcompanyChange={subcompanyChangeHandler}
                 onSelectProject={setSelectedProject}
@@ -459,7 +482,7 @@ export default function Portal() {
                 projectFilters={projectFilters}
                 brandColors={brandColors}
                 loading={dataLoading}
-                subcompanyOptions={subcompanyOptions}
+                subcompanyOptions={availableSubcompanyOptions}
                 selectedSubcompany={selectedSubcompany}
                 onSubcompanyChange={subcompanyChangeHandler}
               />
@@ -472,7 +495,7 @@ export default function Portal() {
                 projectFilters={projectFilters}
                 brandColors={brandColors}
                 loading={dataLoading}
-                subcompanyOptions={subcompanyOptions}
+                subcompanyOptions={availableSubcompanyOptions}
                 selectedSubcompany={selectedSubcompany}
                 onSubcompanyChange={subcompanyChangeHandler}
               />
@@ -486,7 +509,7 @@ export default function Portal() {
                 projectFilters={projectFilters}
                 brandColors={brandColors}
                 loading={dataLoading}
-                subcompanyOptions={subcompanyOptions}
+                subcompanyOptions={availableSubcompanyOptions}
                 selectedSubcompany={selectedSubcompany}
                 onSubcompanyChange={subcompanyChangeHandler}
               />
@@ -500,7 +523,7 @@ export default function Portal() {
                 projectFilters={projectFilters}
                 brandColors={brandColors}
                 loading={dataLoading}
-                subcompanyOptions={subcompanyOptions}
+                subcompanyOptions={availableSubcompanyOptions}
                 selectedSubcompany={selectedSubcompany}
                 onSubcompanyChange={subcompanyChangeHandler}
               />
@@ -513,7 +536,7 @@ export default function Portal() {
                 projectFilters={projectFilters}
                 brandColors={brandColors}
                 loading={dataLoading}
-                subcompanyOptions={subcompanyOptions}
+                subcompanyOptions={availableSubcompanyOptions}
                 selectedSubcompany={selectedSubcompany}
                 onSubcompanyChange={subcompanyChangeHandler}
               />

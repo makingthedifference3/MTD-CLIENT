@@ -32,6 +32,8 @@ export const formatProjectIdentity = (project?: Partial<Project>): string => {
 export interface UseProjectFiltersOptions {
   projects: Project[];
   selectedProjectId: string | null;
+  selectedSubcompany?: string;
+  subcompanyStateLookup?: Record<string, string | undefined>;
   onSubcompanyChange?: (value: string) => void;
 }
 
@@ -47,7 +49,13 @@ export interface UseProjectFiltersResult {
   resetFilters: () => void;
 }
 
-export function useProjectFilters({ projects, selectedProjectId, onSubcompanyChange }: UseProjectFiltersOptions): UseProjectFiltersResult {
+export function useProjectFilters({
+  projects,
+  selectedProjectId,
+  selectedSubcompany,
+  subcompanyStateLookup,
+  onSubcompanyChange,
+}: UseProjectFiltersOptions): UseProjectFiltersResult {
   const [selectedProjectGroup, setSelectedProjectGroup] = useState('all');
   const [selectedState, setSelectedState] = useState('all');
 
@@ -72,6 +80,14 @@ export function useProjectFilters({ projects, selectedProjectId, onSubcompanyCha
       ? projects
       : projects.filter((project) => project.id === selectedProjectGroup);
 
+  const projectsForStateOptions = useMemo(() => {
+    if (selectedProjectGroup !== 'all') return selectedGroupProjects;
+    if (selectedSubcompany && selectedSubcompany !== 'all') {
+      return projects.filter((project) => project.toll_id === selectedSubcompany);
+    }
+    return projects;
+  }, [projects, selectedGroupProjects, selectedProjectGroup, selectedSubcompany]);
+
   const filteredProjects = useMemo(() => {
     const stateConstraint = selectedState === 'all' ? undefined : selectedState;
     let workingSet = selectedGroupProjects;
@@ -83,13 +99,43 @@ export function useProjectFilters({ projects, selectedProjectId, onSubcompanyCha
 
   const states = useMemo(() => {
     const stateSet = new Set<string>();
-    projects.forEach((project) => {
+    projectsForStateOptions.forEach((project) => {
       if (project.state) {
         stateSet.add(project.state);
       }
     });
     return Array.from(stateSet).sort((a, b) => a.localeCompare(b));
-  }, [projects]);
+  }, [projectsForStateOptions]);
+
+  useEffect(() => {
+    if (selectedProjectGroup === 'all') return;
+    const project = selectedGroupProjects[0];
+    if (!project?.state) return;
+    setSelectedState(project.state);
+  }, [selectedGroupProjects, selectedProjectGroup]);
+
+  useEffect(() => {
+    if (selectedProjectGroup !== 'all') return;
+
+    const applyState = (value: string) => {
+      setSelectedState((current) => (current === value ? current : value));
+    };
+
+    if (!selectedSubcompany || selectedSubcompany === 'all') {
+      applyState('all');
+      return;
+    }
+
+    const enforcedState = subcompanyStateLookup?.[selectedSubcompany];
+    if (enforcedState) {
+      applyState(enforcedState);
+      return;
+    }
+
+    if (states.length === 1) {
+      applyState(states[0]);
+    }
+  }, [selectedProjectGroup, selectedSubcompany, subcompanyStateLookup, states]);
 
   const visibleProjectIds = useMemo(() => filteredProjects.map((project) => project.id), [filteredProjects]);
 

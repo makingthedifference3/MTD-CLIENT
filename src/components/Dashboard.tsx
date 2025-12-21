@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/useToast';
 import type { Project, Media as MediaAsset, ProjectActivity, RealTimeUpdate } from '@/types/csr';
@@ -49,7 +49,7 @@ interface DashboardMetrics {
 }
 
 export default function Dashboard({ 
-  selectedProject, 
+  selectedProject: selectedProjectId, 
   projects, 
   loading, 
   onUpdateProject, 
@@ -100,16 +100,19 @@ export default function Dashboard({
     onSelectProject?.(projectId);
   };
 
-  const handleStateChange = (state: string) => {
+  const updateState = useCallback((state: string) => {
     setSelectedState(state);
     onSelectState?.(state);
+  }, [onSelectState]);
+
+  const handleStateChange = (state: string) => {
+    updateState(state);
   };
 
   const resetAllFilters = () => {
     setSelectedProjectGroup('all');
-    setSelectedState('all');
+    updateState('all');
     onSelectProject?.(null);
-    onSelectState?.('all');
     if (onSubcompanyChange) {
       onSubcompanyChange('all');
     }
@@ -123,10 +126,34 @@ export default function Dashboard({
     // Keep the group selection when changing subcompany filter
   };
 
-  const states = useMemo(() => {
+  const allStates = useMemo(() => {
     if (!partner) return [] as string[];
     return Array.from(new Set(projects.map((project) => project.state).filter(Boolean))) as string[];
   }, [partner, projects]);
+
+  const subcompanyProjects = useMemo(() => {
+    if (selectedSubcompany === 'all') return [] as Project[];
+    return projects.filter((project) => project.toll_id === selectedSubcompany);
+  }, [projects, selectedSubcompany]);
+
+  const subcompanyStates = useMemo(() => {
+    return Array.from(new Set(subcompanyProjects.map((project) => project.state).filter(Boolean))).sort((a, b) => (a ?? '').localeCompare(b ?? ''));
+  }, [subcompanyProjects]);
+
+  const selectedProjectDetails = useMemo(() => {
+    if (selectedProjectGroup === 'all') return undefined;
+    return projects.find((project) => project.id === selectedProjectGroup);
+  }, [projects, selectedProjectGroup]);
+
+  const states = useMemo(() => {
+    if (selectedProjectDetails?.state) {
+      return [selectedProjectDetails.state];
+    }
+    if (subcompanyStates.length > 0) {
+      return subcompanyStates;
+    }
+    return allStates;
+  }, [allStates, selectedProjectDetails, subcompanyStates]);
 
   const projectGroupOptions = useMemo<SelectOption[]>(
     () =>
@@ -156,8 +183,23 @@ export default function Dashboard({
   const selectedUpdateIdentity = formatProjectIdentity(selectedUpdateProject);
 
   useEffect(() => {
-    setSelectedProjectGroup(selectedProject ?? 'all');
-  }, [selectedProject]);
+    setSelectedProjectGroup(selectedProjectId ?? 'all');
+  }, [selectedProjectId]);
+
+  useEffect(() => {
+    if (selectedProjectDetails?.state) {
+      updateState(selectedProjectDetails.state);
+    }
+  }, [selectedProjectDetails, updateState]);
+
+  useEffect(() => {
+    if (selectedProjectGroup !== 'all') return;
+    if (selectedSubcompany === 'all' || subcompanyStates.length === 0) {
+      updateState('all');
+      return;
+    }
+    updateState(subcompanyStates[0] ?? 'all');
+  }, [selectedProjectGroup, selectedSubcompany, subcompanyStates, updateState]);
 
   const modalBaseProjects = useMemo(() => {
     return projects.filter((project) => {
@@ -390,6 +432,12 @@ export default function Dashboard({
     };
   }, [activities, filteredProjects, singleProjectSelected]);
 
+  const compactTimelineCompletion = useMemo(() => {
+    if (!compactTimeline?.bars?.length) return 0;
+    const total = compactTimeline.bars.reduce((sum, bar) => sum + bar.completion, 0);
+    return Math.round(total / compactTimeline.bars.length);
+  }, [compactTimeline]);
+
   const getMetricTitle = (key: string): string => {
     const titles: Record<string, string> = {
       beneficiaries: 'Total Beneficiaries',
@@ -470,7 +518,7 @@ export default function Dashboard({
 
   const handleEditClick = (key: string, current: number, target: number) => {
     if (!canEditMetrics) return;
-    if (!selectedProject) {
+    if (!selectedProjectId) {
       alert("Please select a specific project from the dropdown to edit metrics.");
       return;
     }
@@ -479,7 +527,7 @@ export default function Dashboard({
   };
 
   const handleSaveMetric = async () => {
-    if (!canEditMetrics || !selectedProject || !editingMetric || !onUpdateProject) return;
+    if (!canEditMetrics || !selectedProjectId || !editingMetric || !onUpdateProject) return;
     
     setIsSaving(true);
     try {
@@ -493,7 +541,7 @@ export default function Dashboard({
         projectUpdates.utilized_budget = editValues.current;
         projectUpdates.total_budget = editValues.target;
       } else {
-        const project = projects.find(p => p.id === selectedProject);
+        const project = projects.find(p => p.id === selectedProjectId);
         const currentTargets = project?.targets || {};
         const currentAchievements = project?.achievements || {};
         
@@ -507,7 +555,7 @@ export default function Dashboard({
         };
       }
 
-      await onUpdateProject(selectedProject, projectUpdates);
+      await onUpdateProject(selectedProjectId, projectUpdates);
       setEditingMetric(null);
       addToast(`${getMetricTitle(editingMetric)} updated successfully`, 'success');
     } catch (error) {
@@ -547,7 +595,7 @@ export default function Dashboard({
           projectGroupOptions={projectGroupOptions}
           selectedProjectGroup={selectedProjectGroup}
           onProjectGroupChange={handleProjectGroupChange}
-          states={states}
+          states={states.filter((s): s is string => typeof s === 'string')}
           selectedState={selectedState}
           onStateChange={handleStateChange}
           subcompanyOptions={subcompanyOptions}
@@ -1089,6 +1137,18 @@ export default function Dashboard({
                           <div className="flex items-center gap-2 text-xs">
                             <span className="font-medium text-muted-foreground">End: <span className="text-foreground">{compactTimeline.endLabel}</span></span>
                             <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                          </div>
+                        </div>
+                        <div className="mb-4 space-y-2 px-2">
+                          <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground">
+                            <span>Total project completion</span>
+                            <span className="text-foreground">{compactTimelineCompletion}%</span>
+                          </div>
+                          <div className="h-1.5 w-full rounded-full bg-muted/30 overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-emerald-400 to-emerald-300 shadow-sm"
+                              style={{ width: `${compactTimelineCompletion}%` }}
+                            ></div>
                           </div>
                         </div>
                         <ScrollArea className="h-[145px]" type="always">

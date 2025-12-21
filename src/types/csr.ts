@@ -2,6 +2,7 @@ export interface Toll {
   id: string;
   toll_name: string;
   csr_partner_id: string;
+  state?: string;
 }
 
 export interface CSRPartner {
