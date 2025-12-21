@@ -140,6 +140,12 @@ export default function Dashboard({
     return Array.from(new Set(subcompanyProjects.map((project) => project.state).filter(Boolean))).sort((a, b) => (a ?? '').localeCompare(b ?? ''));
   }, [subcompanyProjects]);
 
+  const availableSubcompanyOptions = useMemo(() => {
+    if (selectedState === 'all') return subcompanyOptions;
+    const allowed = new Set(projects.filter((project) => project.state === selectedState).map((project) => project.toll_id).filter(Boolean));
+    return subcompanyOptions.filter((option) => allowed.has(option.value));
+  }, [projects, selectedState, subcompanyOptions]);
+
   const selectedProjectDetails = useMemo(() => {
     if (selectedProjectGroup === 'all') return undefined;
     return projects.find((project) => project.id === selectedProjectGroup);
@@ -156,17 +162,42 @@ export default function Dashboard({
   }, [allStates, selectedProjectDetails, subcompanyStates]);
 
   const projectGroupOptions = useMemo<SelectOption[]>(
-    () =>
-      projects
+    () => {
+      let filtered = projects;
+      if (selectedSubcompany !== 'all') {
+        filtered = filtered.filter((project) => project.toll_id === selectedSubcompany);
+      }
+      if (selectedState !== 'all') {
+        filtered = filtered.filter((project) => project.state === selectedState);
+      }
+      return filtered
         .map((project) => ({ value: project.id, label: formatProjectLabel(project) }))
-        .sort((a, b) => a.label.localeCompare(b.label)),
-    [projects]
+        .sort((a, b) => a.label.localeCompare(b.label));
+    },
+    [projects, selectedState, selectedSubcompany]
   );
 
   const subcompanyLabelMap = useMemo(
-    () => new Map(subcompanyOptions.map((option) => [option.value, option.label])),
-    [subcompanyOptions]
+    () => new Map(availableSubcompanyOptions.map((option) => [option.value, option.label])),
+    [availableSubcompanyOptions]
   );
+
+  useEffect(() => {
+    if (selectedSubcompany === 'all') return;
+    const existsInState = availableSubcompanyOptions.some((option) => option.value === selectedSubcompany);
+    if (!existsInState && onSubcompanyChange) {
+      onSubcompanyChange('all');
+    }
+  }, [availableSubcompanyOptions, onSubcompanyChange, selectedSubcompany]);
+
+  useEffect(() => {
+    if (selectedProjectGroup === 'all') return;
+    const existsInFilters = projectGroupOptions.some((option) => option.value === selectedProjectGroup);
+    if (!existsInFilters) {
+      setSelectedProjectGroup('all');
+      onSelectProject?.(null);
+    }
+  }, [onSelectProject, projectGroupOptions, selectedProjectGroup]);
 
   const projectsById = useMemo(
     () => new Map(projects.map((project) => [project.id, project])),
@@ -598,7 +629,7 @@ export default function Dashboard({
           states={states.filter((s): s is string => typeof s === 'string')}
           selectedState={selectedState}
           onStateChange={handleStateChange}
-          subcompanyOptions={subcompanyOptions}
+          subcompanyOptions={availableSubcompanyOptions}
           selectedSubcompany={selectedSubcompany}
           onSubcompanyChange={onSubcompanyChange}
           resetFilters={resetAllFilters}
