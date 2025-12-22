@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import type { User, CSRPartner } from '../types/csr';
 import { findCSRPartner, findTollUser } from '../lib/supabaseProxy';
+import { supabase } from '../lib/supabase';
 
 interface AuthContextType {
   user: User | null;
@@ -22,16 +23,87 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     checkAuth();
+
+    // Listen for Supabase auth state changes (for session-based auth from bridge)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        await handleSupabaseSession(session);
+      } else if (event === 'SIGNED_OUT') {
+        // Only clear if it was a Supabase session logout
+        const storedUser = localStorage.getItem(USER_STORAGE_KEY);
+        if (!storedUser) {
+          setUser(null);
+          setPartner(null);
+        }
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
+
+  async function handleSupabaseSession(session: any) {
+    try {
+      // Fetch user data from Supabase session
+      const { data: { user: supabaseUser } } = await supabase.auth.getUser();
+
+      if (supabaseUser) {
+        // Get user metadata from session
+        const metadata = supabaseUser.user_metadata || {};
+        const csrPartnerId = metadata.csr_partner_id || supabaseUser.id;
+
+        // Try to fetch partner data from the database
+        const { data: partnerData } = await supabase
+          .from('csr_partners')
+          .select('*')
+          .eq('id', csrPartnerId)
+          .single();
+
+        const loggedInUser: User = {
+          id: supabaseUser.id,
+          email: supabaseUser.email || '',
+          full_name: metadata.full_name || supabaseUser.email || 'User',
+          role: metadata.role || 'client',
+          csr_partner_id: csrPartnerId,
+        };
+
+        const loggedInPartner: CSRPartner = partnerData || {
+          id: csrPartnerId,
+          name: metadata.partner_name || 'Partner',
+          company_name: metadata.company_name || 'Company',
+          website: metadata.website || '',
+          primary_color: metadata.primary_color,
+        };
+
+        setUser(loggedInUser);
+        setPartner(loggedInPartner);
+
+        // Store in localStorage for persistence
+        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(loggedInUser));
+        localStorage.setItem(PARTNER_STORAGE_KEY, JSON.stringify(loggedInPartner));
+      }
+    } catch (error) {
+      console.error('Error handling Supabase session:', error);
+    }
+  }
 
   async function checkAuth() {
     try {
-      const storedUser = localStorage.getItem(USER_STORAGE_KEY);
-      const storedPartner = localStorage.getItem(PARTNER_STORAGE_KEY);
+      // First check for Supabase session
+      const { data: { session } } = await supabase.auth.getSession();
 
-      if (storedUser && storedPartner) {
-        setUser(JSON.parse(storedUser));
-        setPartner(JSON.parse(storedPartner));
+      if (session) {
+        await handleSupabaseSession(session);
+      } else {
+        // Fall back to localStorage-based auth
+        const storedUser = localStorage.getItem(USER_STORAGE_KEY);
+        const storedPartner = localStorage.getItem(PARTNER_STORAGE_KEY);
+
+        if (storedUser && storedPartner) {
+          setUser(JSON.parse(storedUser));
+          setPartner(JSON.parse(storedPartner));
+        }
       }
     } catch (error) {
       console.error('Auth check error:', error);
@@ -109,7 +181,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setPartner(null);
     localStorage.removeItem(USER_STORAGE_KEY);
     localStorage.removeItem(PARTNER_STORAGE_KEY);
-    // We don't call supabase.auth.signOut() because we didn't use it for login
+
+    // Sign out from Supabase session if exists
+    await supabase.auth.signOut();
   }
 
   return (
