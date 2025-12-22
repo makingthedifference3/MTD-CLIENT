@@ -7,6 +7,7 @@ interface AuthContextType {
   partner: CSRPartner | null;
   loading: boolean;
   login: (pocName: string, password: string) => Promise<void>;
+  setAuthData: (user: User, partner: CSRPartner) => void;
   logout: () => Promise<void>;
 }
 
@@ -105,6 +106,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(PARTNER_STORAGE_KEY, JSON.stringify(loggedInPartner));
   }
 
+  function setAuthData(loggedInUser: User, loggedInPartner: CSRPartner) {
+    // Update state immediately
+    setUser(loggedInUser);
+    setPartner(loggedInPartner);
+    // Persist to localStorage
+    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(loggedInUser));
+    localStorage.setItem(PARTNER_STORAGE_KEY, JSON.stringify(loggedInPartner));
+  }
+
   async function logout() {
     setUser(null);
     setPartner(null);
@@ -113,7 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, partner, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, partner, loading, login, setAuthData, logout }}>
       {children}
     </AuthContext.Provider>
   );

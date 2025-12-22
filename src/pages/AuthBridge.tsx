@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { findCSRPartner } from '../lib/supabaseProxy';
+import { useAuth } from '../contexts/AuthContext';
 import type { User, CSRPartner } from '../types/csr';
 
 export default function AuthBridge() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { setAuthData } = useAuth();
   const [status, setStatus] = useState<'processing' | 'error'>('processing');
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -38,7 +40,7 @@ export default function AuthBridge() {
           return;
         }
 
-        // Manually create user and partner objects
+        // Create user and partner objects
         const loggedInUser: User = {
           id: partnerData.id,
           full_name: partnerData.contact_person || username,
@@ -55,9 +57,8 @@ export default function AuthBridge() {
           primary_color: partnerData.primary_color
         };
 
-        // Save to localStorage (same keys used by AuthContext)
-        localStorage.setItem('csr_user', JSON.stringify(loggedInUser));
-        localStorage.setItem('csr_partner', JSON.stringify(loggedInPartner));
+        // Use AuthContext to set auth data (updates state + localStorage)
+        setAuthData(loggedInUser, loggedInPartner);
 
         // Clear credentials from URL for security
         window.history.replaceState({}, document.title, '/auth-bridge');
