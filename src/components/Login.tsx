@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../hooks/useToast';
 
@@ -10,6 +11,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const { addToast } = useToast();
+  const navigate = useNavigate();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -19,6 +21,7 @@ export default function Login() {
     try {
       await login(pocName, password);
       addToast('Login successful! Welcome back.', 'success');
+      navigate('/dashboard');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Invalid credentials. Please try again.';
       setError(errorMessage);
