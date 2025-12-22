@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { findCSRPartner } from '../lib/supabaseProxy';
+import type { User, CSRPartner } from '../types/csr';
 
 export default function AuthBridge() {
   const [searchParams] = useSearchParams();
@@ -11,41 +12,57 @@ export default function AuthBridge() {
   useEffect(() => {
     const establishSession = async () => {
       try {
-        // Get tokens from URL query parameters
-        const accessToken = searchParams.get('access_token');
-        const refreshToken = searchParams.get('refresh_token');
+        // Get Base64 encoded credentials from URL query parameters
+        const encodedUser = searchParams.get('user');
+        const encodedPass = searchParams.get('pass');
 
-        if (!accessToken || !refreshToken) {
+        if (!encodedUser || !encodedPass) {
           setStatus('error');
-          setErrorMessage('Missing authentication tokens');
+          setErrorMessage('Missing authentication credentials');
           return;
         }
 
-        // Set the Supabase session with the provided tokens
-        const { data, error } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken,
-        });
+        // Decode the credentials
+        const username = atob(encodedUser);
+        const password = atob(encodedPass);
 
-        if (error) {
-          console.error('Session error:', error);
+        // Query csr_partners table to find matching credentials
+        const partnerData = await findCSRPartner(username, password);
+
+        if (!partnerData) {
           setStatus('error');
-          setErrorMessage(error.message);
+          setErrorMessage('Unauthorized Access');
           return;
         }
 
-        if (data.session) {
-          // Clear tokens from URL for security
-          window.history.replaceState({}, document.title, '/auth-bridge');
+        // Manually create user and partner objects
+        const loggedInUser: User = {
+          id: partnerData.id,
+          full_name: partnerData.contact_person || username,
+          role: 'client',
+          csr_partner_id: partnerData.id,
+          email: partnerData.email
+        };
 
-          // Navigate to dashboard after successful session establishment
-          navigate('/dashboard', { replace: true });
-        } else {
-          setStatus('error');
-          setErrorMessage('Failed to establish session');
-        }
+        const loggedInPartner: CSRPartner = {
+          id: partnerData.id,
+          name: partnerData.name,
+          company_name: partnerData.company_name || partnerData.name,
+          website: partnerData.website,
+          primary_color: partnerData.primary_color
+        };
+
+        // Save to localStorage (same keys used by AuthContext)
+        localStorage.setItem('csr_user', JSON.stringify(loggedInUser));
+        localStorage.setItem('csr_partner', JSON.stringify(loggedInPartner));
+
+        // Clear credentials from URL for security
+        window.history.replaceState({}, document.title, '/auth-bridge');
+
+        // Navigate to dashboard after successful authentication
+        navigate('/dashboard', { replace: true });
       } catch (err) {
-        console.error('Unexpected error:', err);
+        console.error('Authentication error:', err);
         setStatus('error');
         setErrorMessage('An unexpected error occurred');
       }
