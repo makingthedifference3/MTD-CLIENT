@@ -12,19 +12,22 @@ export default function AuthBridge() {
   useEffect(() => {
     const establishSession = async () => {
       try {
-        // Get Base64 encoded credentials from URL query parameters
-        const encodedUser = searchParams.get('user');
+        // Get credentials from URL query parameters
+        // 'user' comes as plain text, 'pass' comes as Base64 encoded
+        const username = searchParams.get('user');
         const encodedPass = searchParams.get('pass');
 
-        if (!encodedUser || !encodedPass) {
+        if (!username || !encodedPass) {
           setStatus('error');
           setErrorMessage('Missing authentication credentials');
           return;
         }
 
-        // Decode the credentials
-        const username = atob(encodedUser);
+        // Decode only the password (user is already plain text)
         const password = atob(encodedPass);
+
+        // Debug log to help troubleshoot
+        console.log(`Searching for Partner: Name='${username}' Pass='${password}'`);
 
         // Query csr_partners table to find matching credentials
         const partnerData = await findCSRPartner(username, password);
