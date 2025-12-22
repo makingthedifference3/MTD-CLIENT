@@ -72,7 +72,7 @@ export default function AuthBridge() {
             role: 'client',
             csr_partner_id: tollData.csr_partner_id,
             toll_id: tollData.id,
-            email: tollData.poc_email
+            email: tollData.email_id
           };
 
           const loggedInPartner: CSRPartner = {

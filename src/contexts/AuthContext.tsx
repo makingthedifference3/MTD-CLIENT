@@ -92,7 +92,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           toll_id: tollData.id,
           toll_name: tollData.toll_name
         };
+
+        // Save toll-specific flags to localStorage
+        localStorage.setItem('is_toll', 'true');
+        localStorage.setItem('toll_data', JSON.stringify({
+          id: tollData.id,
+          toll_name: tollData.toll_name,
+          poc_name: tollData.poc_name,
+          csr_partner_id: tollData.csr_partner_id,
+          state: tollData.state
+        }));
       }
+    } else {
+      // If main partner login, clear toll flags
+      localStorage.removeItem('is_toll');
+      localStorage.removeItem('toll_data');
     }
 
     if (!loggedInUser || !loggedInPartner) {
@@ -120,6 +134,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setPartner(null);
     localStorage.removeItem(USER_STORAGE_KEY);
     localStorage.removeItem(PARTNER_STORAGE_KEY);
+    localStorage.removeItem('is_toll');
+    localStorage.removeItem('toll_data');
   }
 
   return (
