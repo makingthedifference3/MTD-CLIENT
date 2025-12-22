@@ -66,6 +66,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         website: partnerData.website,
         primary_color: partnerData.primary_color
       };
+
+      // Clear toll flags for main partner login
+      localStorage.removeItem('is_toll');
+      localStorage.removeItem('toll_data');
     } else {
       // 2. If not found, try to find as Toll User
       const tollData = await findTollUser(pocName, password);
@@ -103,10 +107,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           state: tollData.state
         }));
       }
-    } else {
-      // If main partner login, clear toll flags
-      localStorage.removeItem('is_toll');
-      localStorage.removeItem('toll_data');
     }
 
     if (!loggedInUser || !loggedInPartner) {
