@@ -339,9 +339,9 @@ export default function Dashboard({
 
   useEffect(() => {
     if (!partner) return;
-    const newMetrics = calculateDashboardMetrics(filteredProjects);
+    const newMetrics = calculateDashboardMetrics(filteredProjects, { expenseTotals });
     setMetrics(newMetrics as DashboardMetrics);
-  }, [filteredProjects, partner]);
+  }, [filteredProjects, partner, expenseTotals]);
 
   useEffect(() => {
     if (modalMode !== 'group-selector') {

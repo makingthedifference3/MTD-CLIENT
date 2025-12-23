@@ -5,13 +5,19 @@ export type DashboardMetricMap = Record<string, { current: number; target: numbe
 interface MetricOptions {
   projectId?: string | null;
   state?: string | null;
+  expenseTotals?: Record<string, number>;
 }
+
+const getProjectActualUtilized = (project: Project, expenseTotals?: Record<string, number>) => {
+  const actual = expenseTotals?.[project.id] ?? 0;
+  return actual > 0 ? actual : project.utilized_budget ?? 0;
+};
 
 export function calculateDashboardMetrics(
   projects: Project[],
   options?: MetricOptions
 ): DashboardMetricMap {
-  const { projectId, state } = options ?? {};
+  const { projectId, state, expenseTotals } = options ?? {};
 
   let filtered = projects;
 
@@ -33,7 +39,7 @@ export function calculateDashboardMetrics(
   
   // Calculate budget
   const totalBudget = filtered.reduce((sum, project) => sum + (project.total_budget ?? 0), 0);
-  const utilizedBudget = filtered.reduce((sum, project) => sum + (project.utilized_budget ?? 0), 0);
+  const utilizedBudget = filtered.reduce((sum, project) => sum + getProjectActualUtilized(project, expenseTotals), 0);
 
   // Initialize base metrics
   const aggregated: DashboardMetricMap = {
