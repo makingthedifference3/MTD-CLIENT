@@ -11,6 +11,7 @@ import type {
   Toll,
   ProjectActivity,
   ProjectActivityItem,
+  Expense,
 } from '../types/csr';
 import { supabase } from '../lib/supabase';
 import {
@@ -20,6 +21,7 @@ import {
   mapUpdates,
   splitMediaArticles,
   mapCalendarEvents,
+  mapExpenses,
 } from '../lib/dataTransforms';
 import Sidebar from './Sidebar';
 import Dashboard from './Dashboard';
@@ -45,6 +47,7 @@ interface PartnerCollections {
   mediaVideos: MediaAsset[];
   articles: ArticleAsset[];
   calendarEvents: CalendarEvent[];
+  expenses: Expense[];
 }
 
 export default function Portal() {
@@ -71,6 +74,7 @@ export default function Portal() {
     mediaVideos: [],
     articles: [],
     calendarEvents: [],
+    expenses: [],
   });
 
   useEffect(() => {
@@ -120,9 +124,10 @@ export default function Portal() {
         let mediaVideos: MediaAsset[] = [];
         let mappedArticles: ArticleAsset[] = [];
         let mappedCalendarEvents: CalendarEvent[] = [];
+        let mappedExpenses: Expense[] = [];
 
         if (projectIds.length) {
-          const [timelineRes, activitiesRes, reportsRes, updatesRes, mediaRes, tempReportsRes, mergedReportsRes, calendarRes] = await Promise.all([
+          const [timelineRes, activitiesRes, reportsRes, updatesRes, mediaRes, tempReportsRes, mergedReportsRes, calendarRes, expensesRes] = await Promise.all([
             supabase.from('timelines').select('*').in('project_id', projectIds),
             supabase.from('project_activities').select(`
               *,
@@ -134,6 +139,11 @@ export default function Portal() {
             supabase.from('real_time_temp').select('*').in('project_id', projectIds),
             supabase.from('real_time_merged_reports').select('*').in('project_id', projectIds),
             supabase.from('calendar_events').select('*').in('project_id', projectIds),
+            supabase
+              .from('project_expenses')
+              .select('id, project_id, total_amount, status, expense_date')
+              .in('project_id', projectIds)
+              .in('status', ['approved', 'paid']),
           ]);
 
           if (timelineRes.error) throw timelineRes.error;
@@ -144,6 +154,7 @@ export default function Portal() {
           if (tempReportsRes.error) throw tempReportsRes.error;
           if (mergedReportsRes.error) throw mergedReportsRes.error;
           if (calendarRes.error) throw calendarRes.error;
+          if (expensesRes.error) console.error('Expenses error:', expensesRes.error);
 
           mappedTimelines = mapTimelines(timelineRes.data ?? []);
           
@@ -244,6 +255,9 @@ export default function Portal() {
           mappedArticles = mediaSplit.articles;
 
           mappedCalendarEvents = mapCalendarEvents(calendarRes.data ?? []);
+          if (!expensesRes.error) {
+            mappedExpenses = mapExpenses(expensesRes.data ?? []);
+          }
         }
 
         if (cancelled) return;
@@ -258,6 +272,7 @@ export default function Portal() {
           mediaVideos,
           articles: mappedArticles,
           calendarEvents: mappedCalendarEvents,
+          expenses: mappedExpenses,
         });
         setSelectedProject(null);
       } catch (error: unknown) {
@@ -480,6 +495,7 @@ export default function Portal() {
                 videos={collections.mediaVideos}
                 updates={collections.updates}
                 activities={collections.activities}
+                expenses={collections.expenses}
                 onNavigate={handleViewChange}
                 subcompanyOptions={availableSubcompanyOptions}
                 selectedSubcompany={selectedSubcompany}
@@ -511,6 +527,7 @@ export default function Portal() {
                 subcompanyOptions={availableSubcompanyOptions}
                 selectedSubcompany={selectedSubcompany}
                 onSubcompanyChange={subcompanyChangeHandler}
+                expenses={collections.expenses}
               />
             )}
 

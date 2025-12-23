@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/useToast';
-import type { Project, Media as MediaAsset, ProjectActivity, RealTimeUpdate } from '@/types/csr';
+import type { Project, Media as MediaAsset, ProjectActivity, RealTimeUpdate, Expense } from '@/types/csr';
 import { calculateDashboardMetrics } from '@/lib/metrics';
 import { getBrandColors } from '@/lib/logodev';
 import { formatProjectLabel, formatProjectIdentity } from '@/lib/projectFilters';
@@ -37,6 +37,7 @@ interface DashboardProps {
   onSubcompanyChange?: (value: string) => void;
   onSelectProject?: (projectId: string | null) => void;
   onSelectState?: (state: string) => void;
+  expenses: Expense[];
 }
 
 type SelectOption = { value: string; label: string; description?: string };
@@ -48,9 +49,32 @@ interface DashboardMetrics {
   [key: string]: { current: number; target: number };
 }
 
+const buildExpenseTotals = (expenses: Expense[]): Record<string, number> =>
+  expenses.reduce<Record<string, number>>((acc, expense) => {
+    if (!expense.project_id) return acc;
+    acc[expense.project_id] = (acc[expense.project_id] ?? 0) + (expense.total_amount ?? 0);
+    return acc;
+  }, {});
+
+const calculateActualUtilized = (
+  expenseTotals: Record<string, number>,
+  projectIds?: string[]
+): number => {
+  if (!projectIds || projectIds.length === 0) {
+    return Object.values(expenseTotals).reduce((sum, value) => sum + value, 0);
+  }
+  return projectIds.reduce((sum, projectId) => sum + (expenseTotals[projectId] ?? 0), 0);
+};
+
+const calculateProjectUtilized = (expenseTotals: Record<string, number>, projectId?: string | null): number => {
+  if (!projectId) return 0;
+  return expenseTotals[projectId] ?? 0;
+};
+
 export default function Dashboard({ 
   selectedProject: selectedProjectId, 
   projects, 
+  expenses = [],
   loading, 
   onUpdateProject, 
   photos = [],
@@ -90,6 +114,12 @@ export default function Dashboard({
   const [selectedUpdate, setSelectedUpdate] = useState<RealTimeUpdate | null>(null);
   const [recentItemsProjectFilter, setRecentItemsProjectFilter] = useState('all');
   const [recentUpdatesProjectFilter, setRecentUpdatesProjectFilter] = useState('all');
+
+  const expenseTotals = useMemo(() => buildExpenseTotals(expenses), [expenses]);
+  const getPreferredUtilizedValue = (project: Project) => {
+    const actual = calculateProjectUtilized(expenseTotals, project.id);
+    return actual > 0 ? actual : (project.utilized_budget ?? 0);
+  };
 
   const handleProjectGroupChange = (projectId: string) => {
     setSelectedProjectGroup(projectId);
@@ -253,8 +283,8 @@ export default function Dashboard({
 
   const sortProjectsByUtilizedBudgetDesc = (items: Project[]) =>
     [...items].sort((a, b) => {
-      const utilizedA = a.utilized_budget ?? 0;
-      const utilizedB = b.utilized_budget ?? 0;
+      const utilizedA = getPreferredUtilizedValue(a);
+      const utilizedB = getPreferredUtilizedValue(b);
       if (utilizedB !== utilizedA) return utilizedB - utilizedA;
       const nameA = a.name ?? '';
       const nameB = b.name ?? '';
@@ -296,16 +326,16 @@ export default function Dashboard({
       ? budgetBaseProjects.filter((project) => matchesGroupProject(project, budgetModalGroupProjectName, projects))
       : budgetBaseProjects;
     return sortProjectsByUtilizedBudgetDesc(baseProjects);
-  }, [budgetBaseProjects, budgetModalGroupProjectName, projects]);
+  }, [budgetBaseProjects, budgetModalGroupProjectName, projects, expenseTotals]);
 
   const budgetData = useMemo(() => {
     const partnerProjects = filteredProjects.filter((project) => project.csr_partner_id === partner?.id);
     const total = partnerProjects.reduce((sum, p) => sum + (p.total_budget || 0), 0);
-    const utilized = partnerProjects.reduce((sum, p) => sum + (p.utilized_budget || 0), 0);
-    const remaining = total - utilized;
-    const percentage = total > 0 ? (utilized / total) * 100 : 0;
-    return { total, utilized, remaining, percentage };
-  }, [filteredProjects, partner]);
+    const actualUtilized = calculateActualUtilized(expenseTotals, partnerProjects.map((project) => project.id));
+    const remaining = Math.max(total - actualUtilized, 0);
+    const percentage = total > 0 ? (actualUtilized / total) * 100 : 0;
+    return { total, utilized: actualUtilized, remaining, percentage };
+  }, [filteredProjects, partner, expenseTotals]);
 
   useEffect(() => {
     if (!partner) return;
@@ -741,6 +771,7 @@ export default function Dashboard({
             ) : modalMode === 'group-selector' ? (
               <GroupedProjectSelector
                 projects={modalBaseProjects}
+                expensesByProject={expenseTotals}
                 onSelectGroup={(group: GroupedProject) => {
                   setModalGroupProjectName(group.name);
                   setModalMode('projects');
@@ -751,8 +782,8 @@ export default function Dashboard({
                 <div className="space-y-4">
                   {modalProjects.map((project) => {
                   const totalBudget = sanitizeBudgetValue(project.total_budget);
-                  const utilizedBudget = sanitizeBudgetValue(project.utilized_budget);
-                  const remainingBudget = Math.max(totalBudget - utilizedBudget, 0);
+                  const actualUtilized = Math.max(getPreferredUtilizedValue(project), 0);
+                  const remainingBudget = Math.max(totalBudget - actualUtilized, 0);
                   const locationLabel = project.location || project.state || 'Location unknown';
                   const startDateLabel = project.start_date
                     ? new Date(project.start_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -813,7 +844,7 @@ export default function Dashboard({
                         </div>
                         <div>
                           <p className="text-[10px] uppercase tracking-wider">Utilized</p>
-                          <p className="font-semibold text-foreground">{formatCurrency(utilizedBudget)}</p>
+                          <p className="font-semibold text-foreground">{formatCurrency(actualUtilized)}</p>
                         </div>
                         <div>
                           <p className="text-[10px] uppercase tracking-wider">Remaining</p>
@@ -894,6 +925,7 @@ export default function Dashboard({
             {modalMode === 'budget-group-selector' ? (
               <GroupedProjectSelector
                 projects={budgetBaseProjects}
+                expensesByProject={expenseTotals}
                 onSelectGroup={(group: GroupedProject) => {
                   setBudgetModalGroupProjectName(group.name);
                   setModalMode('budget-projects');
@@ -904,9 +936,9 @@ export default function Dashboard({
                 <div className="space-y-4">
                   {budgetModalProjects.map((project) => {
                     const totalBudget = sanitizeBudgetValue(project.total_budget);
-                    const utilizedBudget = sanitizeBudgetValue(project.utilized_budget);
-                    const remainingBudget = Math.max(totalBudget - utilizedBudget, 0);
-                    const percentage = totalBudget > 0 ? (utilizedBudget / totalBudget) * 100 : 0;
+                    const actualUtilized = Math.max(getPreferredUtilizedValue(project), 0);
+                    const remainingBudget = Math.max(totalBudget - actualUtilized, 0);
+                    const percentage = totalBudget > 0 ? (actualUtilized / totalBudget) * 100 : 0;
                     const locationLabel = project.location || project.state || 'Location unknown';
                     
                     return (
@@ -936,7 +968,7 @@ export default function Dashboard({
                           </div>
                           <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30">
                             <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Utilized</p>
-                            <p className="text-xl font-bold text-emerald-600">{formatCurrency(utilizedBudget)}</p>
+                            <p className="text-xl font-bold text-emerald-600">{formatCurrency(actualUtilized)}</p>
                           </div>
                           <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30">
                             <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Remaining</p>

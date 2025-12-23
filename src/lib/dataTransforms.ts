@@ -5,7 +5,8 @@ import type {
   RealTimeUpdate,
   Media,
   Article,
-  CalendarEvent
+  CalendarEvent,
+  Expense
 } from '../types/csr';
 
 interface ProjectMetricValue {
@@ -129,6 +130,15 @@ interface CalendarEventRow {
   location?: string | null;
   venue?: string | null;
   itenary_url?: string | null;
+}
+
+interface ExpenseRow {
+  id: string;
+  project_id: string | null;
+  total_amount?: number | null;
+  amount?: number | null;
+  status?: string | null;
+  expense_date?: string | null;
 }
 
 const toISODate = (input?: string | null) => {
@@ -390,3 +400,14 @@ export const mapCalendarEvents = (rows: CalendarEventRow[]): CalendarEvent[] =>
         itenary_url: row.itenary_url ?? undefined,
       };
     });
+
+export const mapExpenses = (rows: ExpenseRow[]): Expense[] =>
+  rows
+    .filter((row) => row.id && row.project_id)
+    .map((row) => ({
+      id: row.id,
+      project_id: row.project_id as string,
+      total_amount: safeNumber(row.total_amount ?? row.amount),
+      status: row.status ?? undefined,
+      expense_date: row.expense_date ? toISODate(row.expense_date) : undefined,
+    }));

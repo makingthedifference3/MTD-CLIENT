@@ -191,3 +191,11 @@ export interface Article {
   update_id?: string;
   update_title?: string;
 }
+
+export interface Expense {
+  id: string;
+  project_id: string;
+  total_amount: number;
+  status?: string;
+  expense_date?: string;
+}

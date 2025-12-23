@@ -15,16 +15,23 @@ export interface GroupedProject {
 interface GroupedProjectSelectorProps {
   projects: Project[];
   onSelectGroup: (group: GroupedProject) => void;
+  expensesByProject?: Record<string, number>;
 }
 
-const compareProjectsByUtilizedBudgetDesc = (a: Project, b: Project) => {
-  const utilizedA = a.utilized_budget ?? 0;
-  const utilizedB = b.utilized_budget ?? 0;
+const getProjectActualUtilized = (project: Project, expensesByProject?: Record<string, number>) => {
+  const actual = expensesByProject?.[project.id] ?? 0;
+  return actual > 0 ? actual : project.utilized_budget ?? 0;
+};
+
+const compareProjectsByUtilizedBudgetDesc = (expensesByProject?: Record<string, number>) => (a: Project, b: Project) => {
+  const utilizedA = getProjectActualUtilized(a, expensesByProject);
+  const utilizedB = getProjectActualUtilized(b, expensesByProject);
   if (utilizedB !== utilizedA) return utilizedB - utilizedA;
   return (a.name ?? '').localeCompare(b.name ?? '');
 };
 
-const sortProjectsByUtilizedBudgetDesc = (projects: Project[]) => [...projects].sort(compareProjectsByUtilizedBudgetDesc);
+const sortProjectsByUtilizedBudgetDesc = (projects: Project[], expensesByProject?: Record<string, number>) =>
+  [...projects].sort(compareProjectsByUtilizedBudgetDesc(expensesByProject));
 
 export const matchesGroupProject = (project: Project, projectName: string | null, allProjects: Project[]) => {
   if (!projectName) return true;
@@ -38,7 +45,7 @@ export const matchesGroupProject = (project: Project, projectName: string | null
   return parentIds.includes(project.id) || (project.parent_project_id && parentIds.includes(project.parent_project_id));
 };
 
-export default function GroupedProjectSelector({ projects, onSelectGroup }: GroupedProjectSelectorProps) {
+export default function GroupedProjectSelector({ projects, onSelectGroup, expensesByProject }: GroupedProjectSelectorProps) {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   const groupedProjects = useMemo(() => {
@@ -53,7 +60,7 @@ export default function GroupedProjectSelector({ projects, onSelectGroup }: Grou
 
       const childProjects = projects.filter((p) => p.parent_project_id === project.id);
       const totalBudget = (project.total_budget || 0) + childProjects.reduce((sum, child) => sum + (child.total_budget || 0), 0);
-      const utilizedBudget = (project.utilized_budget || 0) + childProjects.reduce((sum, child) => sum + (child.utilized_budget || 0), 0);
+      const utilizedBudget = getProjectActualUtilized(project, expensesByProject) + childProjects.reduce((sum, child) => sum + getProjectActualUtilized(child, expensesByProject), 0);
 
       if (existing) {
         existing.childProjects.push(...childProjects);
@@ -73,13 +80,13 @@ export default function GroupedProjectSelector({ projects, onSelectGroup }: Grou
     return Array.from(groups.values())
       .map((group) => ({
         ...group,
-        childProjects: sortProjectsByUtilizedBudgetDesc(group.childProjects),
+        childProjects: sortProjectsByUtilizedBudgetDesc(group.childProjects, expensesByProject),
       }))
       .sort((a, b) => {
         if (b.utilizedBudget !== a.utilizedBudget) return b.utilizedBudget - a.utilizedBudget;
         return a.name.localeCompare(b.name);
       });
-  }, [projects]);
+  }, [projects, expensesByProject]);
 
   const toggleGroup = (name: string, event: React.MouseEvent) => {
     event.stopPropagation();
@@ -161,7 +168,7 @@ export default function GroupedProjectSelector({ projects, onSelectGroup }: Grou
                 <div className="ml-8 space-y-2">
                   {group.childProjects.map((child) => {
                     const childTotal = child.total_budget || 0;
-                    const childUtilized = child.utilized_budget || 0;
+                    const childUtilized = getProjectActualUtilized(child, expensesByProject);
                     const childPercent = childTotal > 0 ? (childUtilized / childTotal) * 100 : 0;
                     return (
                       <div key={child.id} className="p-3 rounded-xl border border-border bg-muted/40">

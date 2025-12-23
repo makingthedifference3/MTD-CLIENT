@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import type { Project } from '../types/csr';
+import type { Expense, Project } from '../types/csr';
 
 import type { SelectOption, UseProjectFiltersResult } from '../lib/projectFilters';
 import ProjectFilterBar from './ProjectFilterBar';
@@ -13,6 +13,18 @@ const PROJECT_COLORS = [
   { bg: 'from-pink-500 to-rose-600', light: 'bg-pink-50', border: 'border-pink-200' },
   { bg: 'from-cyan-500 to-sky-600', light: 'bg-cyan-50', border: 'border-cyan-200' },
 ];
+
+const buildExpenseTotals = (expenses: Expense[]) =>
+  expenses.reduce<Record<string, number>>((acc, expense) => {
+    if (!expense.project_id) return acc;
+    acc[expense.project_id] = (acc[expense.project_id] ?? 0) + (expense.total_amount ?? 0);
+    return acc;
+  }, {});
+
+const getPreferredUtilizedValue = (expenseTotals: Record<string, number>, project: Project) => {
+  const actual = expenseTotals[project.id] ?? 0;
+  return actual > 0 ? actual : (project.utilized_budget ?? 0);
+};
 
 const sanitizeBudgetValue = (value?: number) => (typeof value === 'number' && Number.isFinite(value) ? value : 0);
 
@@ -68,6 +80,7 @@ interface AccountsProps {
   subcompanyOptions?: SelectOption[];
   selectedSubcompany?: string;
   onSubcompanyChange?: (value: string) => void;
+  expenses: Expense[];
 }
 
 export default function Accounts({
@@ -78,8 +91,10 @@ export default function Accounts({
   subcompanyOptions,
   selectedSubcompany,
   onSubcompanyChange,
+  expenses = [],
 }: AccountsProps) {
   const relevantProjects = projectData.filter(project => projectFilters.visibleProjectIds.includes(project.id));
+  const expenseTotals = useMemo(() => buildExpenseTotals(expenses), [expenses]);
   const parentProjectMap = useMemo(() => {
     const map = new Map<string, Project>();
     projectData.forEach((project) => {
@@ -124,9 +139,9 @@ export default function Accounts({
     const source = parentProject ?? project;
     const divisor = project.parent_project_id ? Math.max(subProjectCounts.get(project.parent_project_id) || 1, 1) : 1;
     const totalBudget = sanitizeBudgetValue(source?.total_budget) / divisor;
-    const utilizedBudget = sanitizeBudgetValue(source?.utilized_budget) / divisor;
+    const utilizedBudget = getPreferredUtilizedValue(expenseTotals, project);
     return { totalBudget, utilizedBudget };
-  }, [parentProjectMap, subProjectCounts]);
+  }, [parentProjectMap, subProjectCounts, expenseTotals]);
 
   const budgetSummary = useMemo(() => {
     let total = 0;
@@ -136,7 +151,7 @@ export default function Accounts({
       total += normalized.totalBudget;
       utilized += normalized.utilizedBudget;
     });
-    const remaining = total - utilized;
+    const remaining = Math.max(total - utilized, 0);
     const percentage = total > 0 ? (utilized / total) * 100 : 0;
     return { total, utilized, remaining, percentage };
   }, [relevantProjects, getNormalizedBudget]);
@@ -163,7 +178,7 @@ export default function Accounts({
         state: project.state || 'N/A',
         totalBudget: normalized.totalBudget,
         utilizedBudget: normalized.utilizedBudget,
-        pendingBudget: normalized.totalBudget - normalized.utilizedBudget,
+        pendingBudget: Math.max(normalized.totalBudget - normalized.utilizedBudget, 0),
         utilizationPercent: utilization,
         colorIndex: groupColor,
         groupKey,
