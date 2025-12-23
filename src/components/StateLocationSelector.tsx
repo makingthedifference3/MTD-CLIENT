@@ -15,11 +15,17 @@ interface StateLocationSelectorProps {
   projects: Project[];
   type: 'state' | 'location';
   onSelect: (value: string) => void;
+  expensesByProject?: Record<string, number>;
 }
 
 const isString = (value: string | undefined | null): value is string => Boolean(value);
 
-export default function StateLocationSelector({ projects, type, onSelect }: StateLocationSelectorProps) {
+const getProjectActualUtilized = (project: Project, expensesByProject?: Record<string, number>) => {
+  const actual = expensesByProject?.[project.id] ?? 0;
+  return actual > 0 ? actual : sanitizeBudgetValue(project.utilized_budget);
+};
+
+export default function StateLocationSelector({ projects, type, onSelect, expensesByProject }: StateLocationSelectorProps) {
     const items = type === 'state'
       ? Array.from(new Set(projects.map(p => p.state).filter(isString))).sort()
       : Array.from(new Set(projects.map(p => p.location).filter(isString))).sort();
@@ -31,7 +37,7 @@ export default function StateLocationSelector({ projects, type, onSelect }: Stat
     const totals = filtered.reduce(
       (acc, project) => {
         acc.total += sanitizeBudgetValue(project.total_budget);
-        acc.utilized += sanitizeBudgetValue(project.utilized_budget);
+        acc.utilized += getProjectActualUtilized(project, expensesByProject);
         return acc;
       },
       { total: 0, utilized: 0 }

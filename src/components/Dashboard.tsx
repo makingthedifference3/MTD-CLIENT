@@ -750,6 +750,7 @@ export default function Dashboard({
               <StateLocationSelector
                 projects={modalBaseProjects}
                 type="state"
+                expensesByProject={expenseTotals}
                 onSelect={(state) => {
                   setModalFilters((prev) => ({ ...prev, state }));
                   setModalReturnMode('state-selector');
@@ -761,6 +762,7 @@ export default function Dashboard({
               <StateLocationSelector
                 projects={modalBaseProjects}
                 type="location"
+                expensesByProject={expenseTotals}
                 onSelect={(location) => {
                   setModalFilters((prev) => ({ ...prev, location }));
                   setModalReturnMode('location-selector');
