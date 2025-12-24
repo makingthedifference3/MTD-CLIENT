@@ -489,7 +489,14 @@ export default function Portal() {
               <div className="text-right">
                 <p className="text-xs font-semibold text-foreground/70 uppercase tracking-wider ">Logged in as</p>
                 <p className="text-sm font-bold text-foreground ">{user?.full_name}</p>
-                <p className="text-xs font-semibold text-foreground/80 ">{partner?.company_name}</p>
+                <p className="text-xs font-semibold text-foreground/80 ">
+                  {partner?.company_name}
+                  {partner?.toll_name && (
+                    <span className="ml-2 text-xs font-semibold text-foreground/70">
+                      • {partner.toll_name}
+                    </span>
+                  )}
+                </p>
               </div>
               <Button variant="destructive" onClick={logout} className="gap-2 shadow-md">
                 <LogOut className="w-5 h-5" />
