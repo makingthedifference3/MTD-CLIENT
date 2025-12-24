@@ -336,18 +336,23 @@ export const splitMediaArticles = (rows: MediaArticleRow[]): {
     const title = safeString(row.title, 'Media Asset');
     const description = typeof row.description === 'string' ? row.description : undefined;
 
-    // Articles: newspaper_cutting, article, document, report, pdf, certificate
+    const normalizedCategory = row.category?.trim().toLowerCase();
+    const isNewsArticleCategory = normalizedCategory === 'news article';
+
+    // Articles: newspaper_cutting, article, document, report, pdf, certificate, or tagged as news articles
     const isArticleType = mediaType === 'newspaper_cutting'
       || mediaType === 'article'
       || mediaType === 'document'
       || mediaType === 'report'
       || mediaType === 'pdf'
-      || mediaType === 'certificate';
+      || mediaType === 'certificate'
+      || isNewsArticleCategory;
 
     // Media: photo, image, video only
     const isMediaType = mediaType === 'photo' || mediaType === 'image' || mediaType === 'video';
+    const shouldIncludeInMedia = isMediaType && !isNewsArticleCategory;
 
-    if (isMediaType) {
+    if (shouldIncludeInMedia) {
       media.push({
         id: row.id,
         project_id: row.project_id as string,
