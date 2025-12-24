@@ -861,19 +861,42 @@ export default function Dashboard({
                         <div className="mt-4">
                           <p className="text-sm font-semibold text-foreground mb-2">Impact Metrics</p>
                           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                            {project.impact_metrics.map((metric) => (
-                              <div
-                                key={`${project.id}-${metric.key}-${metric.customLabel ?? metric.value}`}
-                                className="p-3 rounded-xl border border-border bg-muted/60"
-                              >
-                                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                                  {formatMetricLabel(metric.customLabel ?? metric.key)}
-                                </p>
-                                <p className="text-lg font-bold text-foreground">
-                                  {metric.value.toLocaleString('en-IN')}
-                                </p>
-                              </div>
-                            ))}
+                            {project.impact_metrics.map((metric) => {
+                              const achieved = metric.achieved_value;
+                              const target = metric.target_value;
+                              const targetLabel = target > 0 ? target.toLocaleString('en-IN') : '—';
+                              const progress = target > 0
+                                ? Math.min((achieved / target) * 100, 100)
+                                : achieved > 0
+                                  ? 100
+                                  : 0;
+                              return (
+                                <div
+                                  key={`${project.id}-${metric.id}`}
+                                  className="p-3 rounded-xl border border-border bg-muted/60"
+                                >
+                                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                                    {formatMetricLabel(metric.metric_name || metric.key)}
+                                  </p>
+                                  <p className="text-[10px] uppercase tracking-[0.4em] text-muted-foreground mt-1">Achieved</p>
+                                  <p className="text-2xl font-bold text-foreground">
+                                    {achieved.toLocaleString('en-IN')}
+                                  </p>
+                                  {metric.unit_of_measurement && (
+                                    <p className="text-[10px] text-muted-foreground truncate">{metric.unit_of_measurement}</p>
+                                  )}
+                                  <div className="flex items-center justify-between text-[11px] text-muted-foreground mt-2">
+                                    <span>Target {targetLabel}</span>
+                                    <span>{`${Math.round(progress)}%`}</span>
+                                  </div>
+                                  <Progress
+                                    value={progress}
+                                    className="h-1 mt-2"
+                                    indicatorClassName="bg-gradient-to-r from-emerald-500 to-emerald-600"
+                                  />
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       )}

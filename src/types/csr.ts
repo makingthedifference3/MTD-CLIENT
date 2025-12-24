@@ -32,6 +32,39 @@ export interface ProjectMetric {
   target: number;
 }
 
+export interface ProjectImpactMetric {
+  id: string;
+  project_id: string;
+  key: string;
+  metric_name: string;
+  metric_description?: string;
+  category?: string;
+  unit_of_measurement?: string;
+  metric_type?: string;
+  target_value: number;
+  achieved_value: number;
+  progress_percentage?: number;
+  target_date?: string;
+  start_date?: string;
+  last_updated_date?: string;
+}
+
+export interface ProjectImpactMetricRow {
+  id: string;
+  project_id?: string | null;
+  metric_name?: string | null;
+  metric_description?: string | null;
+  category?: string | null;
+  unit_of_measurement?: string | null;
+  metric_type?: string | null;
+  target_value?: number | null;
+  achieved_value?: number | null;
+  progress_percentage?: number | null;
+  target_date?: string | null;
+  start_date?: string | null;
+  last_updated_date?: string | null;
+}
+
 export interface Project {
   id: string;
   csr_partner_id: string;
@@ -74,7 +107,7 @@ export interface Project {
   parent_project_id?: string;
   is_beneficiary_project?: boolean;
   beneficiary_name?: string;
-  impact_metrics?: Array<{ key: string; value: number; customLabel?: string }>;
+  impact_metrics?: ProjectImpactMetric[];
 }
 
 export interface ProjectActivity {

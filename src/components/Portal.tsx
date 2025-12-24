@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import type {
   Project,
+  ProjectImpactMetricRow,
   Timeline,
   Report,
   RealTimeUpdate,
@@ -113,8 +114,9 @@ export default function Portal() {
         if (tollError) console.error('Error fetching tolls:', tollError);
         else setTolls(tollRows || []);
 
-        const mappedProjects = mapProjects(projectRows ?? []);
-        const projectIds = mappedProjects.map((project) => project.id);
+        const projectRowsList = projectRows ?? [];
+        const projectIds = projectRowsList.map((project) => project.id).filter(Boolean);
+        let impactMetricsByProject: Record<string, ProjectImpactMetricRow[]> = {};
 
         let mappedTimelines: Timeline[] = [];
         let mappedActivities: ProjectActivity[] = [];
@@ -127,7 +129,7 @@ export default function Portal() {
         let mappedExpenses: Expense[] = [];
 
         if (projectIds.length) {
-          const [timelineRes, activitiesRes, reportsRes, updatesRes, mediaRes, tempReportsRes, mergedReportsRes, calendarRes, expensesRes] = await Promise.all([
+          const [timelineRes, activitiesRes, reportsRes, updatesRes, mediaRes, tempReportsRes, mergedReportsRes, calendarRes, expensesRes, impactMetricsRes] = await Promise.all([
             supabase.from('timelines').select('*').in('project_id', projectIds),
             supabase.from('project_activities').select(`
               *,
@@ -144,6 +146,12 @@ export default function Portal() {
               .select('id, project_id, total_amount, status, expense_date')
               .in('project_id', projectIds)
               .in('status', ['approved', 'paid']),
+            supabase
+              .from('project_impact_metrics')
+              .select(
+                'id, project_id, metric_name, metric_description, category, unit_of_measurement, metric_type, target_value, achieved_value, progress_percentage, target_date, start_date, last_updated_date'
+              )
+              .in('project_id', projectIds),
           ]);
 
           if (timelineRes.error) throw timelineRes.error;
@@ -155,6 +163,16 @@ export default function Portal() {
           if (mergedReportsRes.error) throw mergedReportsRes.error;
           if (calendarRes.error) throw calendarRes.error;
           if (expensesRes.error) console.error('Expenses error:', expensesRes.error);
+          if (impactMetricsRes.error) {
+            console.error('Impact metrics error:', impactMetricsRes.error);
+          } else {
+            (impactMetricsRes.data ?? []).forEach((row) => {
+              if (!row.project_id) return;
+              const projectList = impactMetricsByProject[row.project_id] ?? [];
+              projectList.push(row);
+              impactMetricsByProject[row.project_id] = projectList;
+            });
+          }
 
           mappedTimelines = mapTimelines(timelineRes.data ?? []);
           
@@ -259,6 +277,8 @@ export default function Portal() {
             mappedExpenses = mapExpenses(expensesRes.data ?? []);
           }
         }
+
+        const mappedProjects = mapProjects(projectRowsList, impactMetricsByProject);
 
         if (cancelled) return;
 

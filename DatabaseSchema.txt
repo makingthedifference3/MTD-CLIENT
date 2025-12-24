@@ -469,6 +469,50 @@ CREATE TABLE public.expense_categories (
   CONSTRAINT expense_categories_pkey PRIMARY KEY (id),
   CONSTRAINT expense_categories_parent_category_id_fkey FOREIGN KEY (parent_category_id) REFERENCES public.expense_categories(id)
 );
+CREATE TABLE public.impact_metric_templates (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  name character varying NOT NULL UNIQUE,
+  description text,
+  category character varying CHECK (category::text = ANY (ARRAY['Education'::character varying::text, 'Health'::character varying::text, 'Environment'::character varying::text, 'Infrastructure'::character varying::text, 'Livelihood'::character varying::text, 'Social'::character varying::text, 'Other'::character varying::text])),
+  unit_of_measurement character varying NOT NULL,
+  metric_type character varying CHECK (metric_type::text = ANY (ARRAY['Count'::character varying::text, 'Percentage'::character varying::text, 'Amount'::character varying::text, 'Duration'::character varying::text])),
+  default_target_value numeric DEFAULT 0,
+  is_active boolean DEFAULT true,
+  icon character varying,
+  color character varying,
+  sort_order integer DEFAULT 0,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  created_by uuid,
+  CONSTRAINT impact_metric_templates_pkey PRIMARY KEY (id),
+  CONSTRAINT impact_metric_templates_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.impact_metric_updates (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  project_metric_id uuid NOT NULL,
+  project_id uuid NOT NULL,
+  update_type character varying CHECK (update_type::text = ANY (ARRAY['target_set'::character varying::text, 'achievement_added'::character varying::text, 'achievement_updated'::character varying::text, 'milestone_reached'::character varying::text, 'status_changed'::character varying::text])),
+  previous_value numeric,
+  new_value numeric,
+  increment_value numeric DEFAULT (new_value - COALESCE(previous_value, (0)::numeric)),
+  update_source character varying CHECK (update_source::text = ANY (ARRAY['manual'::character varying::text, 'expense_linked'::character varying::text, 'task_completion'::character varying::text, 'report_update'::character varying::text, 'bulk_import'::character varying::text])),
+  reference_type character varying,
+  reference_id uuid,
+  update_date date NOT NULL DEFAULT CURRENT_DATE,
+  description text,
+  evidence_links jsonb DEFAULT '[]'::jsonb,
+  requires_approval boolean DEFAULT false,
+  approved_by uuid,
+  approved_at timestamp with time zone,
+  approval_status character varying DEFAULT 'approved'::character varying CHECK (approval_status::text = ANY (ARRAY['pending'::character varying::text, 'approved'::character varying::text, 'rejected'::character varying::text])),
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  created_by uuid,
+  CONSTRAINT impact_metric_updates_pkey PRIMARY KEY (id),
+  CONSTRAINT impact_metric_updates_project_metric_id_fkey FOREIGN KEY (project_metric_id) REFERENCES public.project_impact_metrics(id),
+  CONSTRAINT impact_metric_updates_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id),
+  CONSTRAINT impact_metric_updates_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES public.users(id),
+  CONSTRAINT impact_metric_updates_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
+);
 CREATE TABLE public.media_articles (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   media_code character varying NOT NULL UNIQUE,
@@ -693,6 +737,40 @@ CREATE TABLE public.project_expenses (
   CONSTRAINT project_expenses_budget_category_id_fkey FOREIGN KEY (budget_category_id) REFERENCES public.budget_categories(id),
   CONSTRAINT project_expenses_merchant_id_fkey FOREIGN KEY (merchant_id) REFERENCES public.merchant(id)
 );
+CREATE TABLE public.project_impact_metrics (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  project_id uuid NOT NULL,
+  template_id uuid,
+  metric_name character varying NOT NULL,
+  metric_description text,
+  category character varying,
+  unit_of_measurement character varying NOT NULL,
+  metric_type character varying,
+  target_value numeric NOT NULL DEFAULT 0,
+  achieved_value numeric NOT NULL DEFAULT 0,
+  progress_percentage numeric DEFAULT 
+CASE
+    WHEN (target_value = (0)::numeric) THEN (0)::numeric
+    ELSE round(((achieved_value / target_value) * (100)::numeric), 2)
+END,
+  target_date date,
+  start_date date,
+  last_updated_date date,
+  status character varying DEFAULT 'active'::character varying CHECK (status::text = ANY (ARRAY['active'::character varying::text, 'completed'::character varying::text, 'paused'::character varying::text, 'cancelled'::character varying::text])),
+  notes text,
+  is_public boolean DEFAULT true,
+  is_primary boolean DEFAULT false,
+  metadata jsonb DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  created_by uuid,
+  updated_by uuid,
+  CONSTRAINT project_impact_metrics_pkey PRIMARY KEY (id),
+  CONSTRAINT project_impact_metrics_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id),
+  CONSTRAINT project_impact_metrics_template_id_fkey FOREIGN KEY (template_id) REFERENCES public.impact_metric_templates(id),
+  CONSTRAINT project_impact_metrics_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id),
+  CONSTRAINT project_impact_metrics_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id)
+);
 CREATE TABLE public.project_team_members (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   project_id uuid NOT NULL,
@@ -791,6 +869,7 @@ CREATE TABLE public.projects (
   uc_link text,
   funding_partner text,
   logo_url text,
+  impact_metrics_summary jsonb NOT NULL DEFAULT '{}'::jsonb,
   CONSTRAINT projects_pkey PRIMARY KEY (id),
   CONSTRAINT projects_csr_partner_id_fkey FOREIGN KEY (csr_partner_id) REFERENCES public.csr_partners(id),
   CONSTRAINT projects_project_manager_id_fkey FOREIGN KEY (project_manager_id) REFERENCES public.users(id),

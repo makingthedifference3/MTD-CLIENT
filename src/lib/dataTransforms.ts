@@ -1,5 +1,7 @@
 import type {
   Project,
+  ProjectImpactMetric,
+  ProjectImpactMetricRow,
   Timeline,
   Report,
   RealTimeUpdate,
@@ -44,7 +46,6 @@ interface ProjectRow {
   students_enrolled?: number | null;
   schools_renovated?: number | null;
   project_metrics?: Record<string, ProjectMetricValue> | null;
-  impact_metrics?: Array<{ key: string; value: number; customLabel?: string }> | null;
   targets?: Record<string, number> | null;
   achievements?: Record<string, number> | null;
   metadata?: Record<string, unknown> | null;
@@ -158,8 +159,47 @@ const safeString = (value?: string | null, fallback = '') => value ?? fallback;
 const safeNumber = (value?: number | null, fallback = 0) =>
   typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 
+const normalizeMetricKey = (label?: string | null) => {
+  if (!label) return '';
+  return label
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+};
+
+const buildImpactMetrics = (rows: ProjectImpactMetricRow[]): ProjectImpactMetric[] =>
+  rows
+    .map((row) => {
+      if (!row.project_id) return null;
+      const name = safeString(row.metric_name, 'Metric');
+      const key = normalizeMetricKey(name);
+      if (!key) return null;
+      const progress = typeof row.progress_percentage === 'number' && Number.isFinite(row.progress_percentage)
+        ? row.progress_percentage
+        : undefined;
+      return {
+        id: row.id,
+        project_id: row.project_id,
+        key,
+        metric_name: name,
+        metric_description: row.metric_description ?? undefined,
+        category: row.category ?? undefined,
+        unit_of_measurement: row.unit_of_measurement ?? undefined,
+        metric_type: row.metric_type ?? undefined,
+        target_value: safeNumber(row.target_value),
+        achieved_value: safeNumber(row.achieved_value),
+        progress_percentage: progress,
+        target_date: row.target_date ?? undefined,
+        start_date: row.start_date ?? undefined,
+        last_updated_date: row.last_updated_date ?? undefined,
+      };
+    })
+    .filter((metric): metric is ProjectImpactMetric => Boolean(metric));
+
 const buildProjectMetrics = (
-  row: ProjectRow
+  row: ProjectRow,
+  impactMetrics: ProjectImpactMetric[] = []
 ): Project['project_metrics'] => {
   const metrics: Project['project_metrics'] = {};
   
@@ -212,60 +252,61 @@ const buildProjectMetrics = (
     }
   });
 
-  if (Array.isArray(row.impact_metrics)) {
-    row.impact_metrics.forEach((metric) => {
-      if (!metric || typeof metric.value !== 'number' || metric.value <= 0) return;
-      const key = metric.key === 'custom' ? metric.customLabel || 'custom' : metric.key;
-      const currentValue = safeNumber(metric.value);
-      if (!metrics[key]) {
-        metrics[key] = { current: 0, target: 0 };
-      }
-      metrics[key].current = Math.max(metrics[key].current, currentValue);
-      if (metrics[key].target === 0) {
-        metrics[key].target = metrics[key].current;
-      }
-    });
-  }
+  impactMetrics.forEach((metric) => {
+    if (!metric.key) return;
+    if (!metrics[metric.key]) {
+      metrics[metric.key] = { current: 0, target: 0 };
+    }
+    metrics[metric.key].current += safeNumber(metric.achieved_value);
+    metrics[metric.key].target += safeNumber(metric.target_value);
+  });
 
   return Object.keys(metrics).length ? metrics : undefined;
 };
-
-export const mapProjects = (rows: ProjectRow[]): Project[] =>
+ 
+export const mapProjects = (
+  rows: ProjectRow[],
+  impactMetricsByProject: Record<string, ProjectImpactMetricRow[]> = {}
+): Project[] =>
   rows
     .filter((row) => row.id && row.csr_partner_id && row.name)
-    .map((row) => ({
-      id: row.id,
-      csr_partner_id: row.csr_partner_id as string,
-      name: row.name ?? 'Untitled Project',
-      code: safeString(row.project_code, row.id.slice(0, 8)),
-      description: row.description ?? undefined,
-      status: safeString(row.status, 'active'),
-      location: row.location ?? row.city ?? undefined,
-      state: row.state ?? undefined,
-      start_date: toISODate(row.start_date ?? row.created_at ?? undefined),
-      end_date: row.actual_end_date ? toISODate(row.actual_end_date) : row.expected_end_date ? toISODate(row.expected_end_date) : undefined,
-      total_budget: safeNumber(row.total_budget ?? row.approved_budget ?? row.pending_budget),
-      utilized_budget: safeNumber(row.utilized_budget),
-      beneficiaries_current: safeNumber(row.beneficiaries_reached ?? row.direct_beneficiaries),
-      beneficiaries_target: safeNumber(row.total_beneficiaries ?? row.indirect_beneficiaries),
-      direct_beneficiaries: safeNumber(row.direct_beneficiaries),
-      indirect_beneficiaries: safeNumber(row.indirect_beneficiaries),
-      male_beneficiaries: safeNumber(row.male_beneficiaries),
-      female_beneficiaries: safeNumber(row.female_beneficiaries),
-      children_beneficiaries: safeNumber(row.children_beneficiaries),
-      pads_distributed: safeNumber(row.pads_distributed),
-      trees_planted: safeNumber(row.trees_planted),
-      meals_served: safeNumber(row.meals_served),
-      students_enrolled: safeNumber(row.students_enrolled),
-      schools_renovated: safeNumber(row.schools_renovated),
-      project_metrics: buildProjectMetrics(row),
-      targets: row.targets ?? undefined,
-      achievements: row.achievements ?? undefined,
-      toll_id: row.toll_id ?? undefined,
-      parent_project_id: row.parent_project_id ?? undefined,
-      is_beneficiary_project: row.is_beneficiary_project ?? false,
-      beneficiary_name: row.beneficiary_name ?? undefined,
-    }));
+    .map((row) => {
+      const impactRows = buildImpactMetrics(impactMetricsByProject[row.id] ?? []);
+      return {
+        id: row.id,
+        csr_partner_id: row.csr_partner_id as string,
+        name: row.name ?? 'Untitled Project',
+        code: safeString(row.project_code, row.id.slice(0, 8)),
+        description: row.description ?? undefined,
+        status: safeString(row.status, 'active'),
+        location: row.location ?? row.city ?? undefined,
+        state: row.state ?? undefined,
+        start_date: toISODate(row.start_date ?? row.created_at ?? undefined),
+        end_date: row.actual_end_date ? toISODate(row.actual_end_date) : row.expected_end_date ? toISODate(row.expected_end_date) : undefined,
+        total_budget: safeNumber(row.total_budget ?? row.approved_budget ?? row.pending_budget),
+        utilized_budget: safeNumber(row.utilized_budget),
+        beneficiaries_current: safeNumber(row.beneficiaries_reached ?? row.direct_beneficiaries),
+        beneficiaries_target: safeNumber(row.total_beneficiaries ?? row.indirect_beneficiaries),
+        direct_beneficiaries: safeNumber(row.direct_beneficiaries),
+        indirect_beneficiaries: safeNumber(row.indirect_beneficiaries),
+        male_beneficiaries: safeNumber(row.male_beneficiaries),
+        female_beneficiaries: safeNumber(row.female_beneficiaries),
+        children_beneficiaries: safeNumber(row.children_beneficiaries),
+        pads_distributed: safeNumber(row.pads_distributed),
+        trees_planted: safeNumber(row.trees_planted),
+        meals_served: safeNumber(row.meals_served),
+        students_enrolled: safeNumber(row.students_enrolled),
+        schools_renovated: safeNumber(row.schools_renovated),
+        project_metrics: buildProjectMetrics(row, impactRows),
+        impact_metrics: impactRows.length ? impactRows : undefined,
+        targets: row.targets ?? undefined,
+        achievements: row.achievements ?? undefined,
+        toll_id: row.toll_id ?? undefined,
+        parent_project_id: row.parent_project_id ?? undefined,
+        is_beneficiary_project: row.is_beneficiary_project ?? false,
+        beneficiary_name: row.beneficiary_name ?? undefined,
+      };
+    });
 
 export const mapTimelines = (rows: TimelineRow[]): Timeline[] =>
   rows
