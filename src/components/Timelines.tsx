@@ -229,7 +229,7 @@ export default function Timelines({
                       <div className="flex border-b border-border text-muted-foreground text-xs uppercase font-semibold relative">
                         <div style={{ width: `${phaseColumnWidth}px` }} className="px-4 py-3">Phase name</div>
                         <div className="flex flex-1 relative">
-                          {monthSequence.map((month, monthIndex) => (
+                          {monthSequence.map((month) => (
                             <div 
                               key={`${group.projectId}-header-${month.label}`} 
                               className={`flex-1 border-l border-border py-3 text-center relative ${

@@ -47,7 +47,7 @@ export default function Article({
 
   const orderedProjects = useMemo(() => {
     const base = projectFilters.filteredProjects.length ? projectFilters.filteredProjects : projects;
-    return base.filter((project) => projectFilters.visibleProjectIds.includes(project.id));
+    return base.filter((project) => (project.id ? projectFilters.visibleProjectIds.includes(project.id) : false));
   }, [projectFilters.filteredProjects, projectFilters.visibleProjectIds, projects]);
 
   const groupedArticles = useMemo(
@@ -133,7 +133,9 @@ export default function Article({
                       const project = projectsById.get(article.project_id);
                       const projectIdentity = formatProjectIdentity(project);
                       const displayTitle = article.update_title || article.title;
-                      const formattedDate = new Date(article.date).toLocaleDateString('en-GB');
+                      const formattedDate = article.date
+                        ? new Date(article.date).toLocaleDateString('en-GB')
+                        : null;
                       return (
                         <div
                           key={article.id}
@@ -147,7 +149,7 @@ export default function Article({
                               {projectIdentity}
                             </p>
                             <p className="text-sm font-semibold text-foreground group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">
-                              {displayTitle} - {formattedDate}
+                              {displayTitle}{formattedDate ? ` - ${formattedDate}` : ''}
                             </p>
                             {article.description && (
                               <p className="text-xs text-muted-foreground line-clamp-2">
@@ -210,7 +212,9 @@ export default function Article({
                       const project = projectsById.get(video.project_id);
                       const projectIdentity = formatProjectIdentity(project);
                       const displayTitle = video.update_title || video.title;
-                      const formattedDate = new Date(video.date).toLocaleDateString('en-GB');
+                      const formattedDate = video.date
+                        ? new Date(video.date).toLocaleDateString('en-GB')
+                        : null;
                       return (
                         <div
                           key={video.id}
@@ -224,7 +228,7 @@ export default function Article({
                               {projectIdentity}
                             </p>
                             <p className="text-sm font-semibold text-foreground group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
-                              {displayTitle} - {formattedDate}
+                              {displayTitle}{formattedDate ? ` - ${formattedDate}` : ''}
                             </p>
                             {video.description && (
                               <p className="text-xs text-muted-foreground line-clamp-2">
@@ -294,8 +298,10 @@ export default function Article({
                     {previewItem.title}
                   </DialogTitle>
                   <DialogDescription>
-                    {formatProjectIdentity(projectsById.get(previewItem.project_id))} •{' '}
-                    {new Date(previewItem.date).toLocaleDateString('en-GB')}
+                    {formatProjectIdentity(projectsById.get(previewItem.project_id))}
+                    {previewItem.date && (
+                      <> • {new Date(previewItem.date).toLocaleDateString('en-GB')}</>
+                    )}
                   </DialogDescription>
                 </DialogHeader>
 

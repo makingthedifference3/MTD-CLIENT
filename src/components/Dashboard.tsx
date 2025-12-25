@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/useToast';
-import type { Project, Media as MediaAsset, ProjectActivity, RealTimeUpdate, Expense } from '@/types/csr';
+import type { Project, Media as MediaAsset, ProjectActivity, RealTimeUpdate, Expense, Report } from '@/types/csr';
 import { calculateDashboardMetrics } from '@/lib/metrics';
 import { getBrandColors } from '@/lib/logodev';
 import { formatProjectLabel, formatProjectIdentity } from '@/lib/projectFilters';
 import {
-  Edit2, Save, Users, TrendingUp, IndianRupee, Heart, BookOpen, GraduationCap, 
+  Save, Users, TrendingUp, IndianRupee, Heart, BookOpen, GraduationCap, 
   School, Library, Award, UtensilsCrossed, Package, Home, Trash2, TreePine, Recycle, 
   Building2, Target, ArrowLeft, Image, Wallet, ChevronRight, Activity, FileText, Download
 } from 'lucide-react';
@@ -30,6 +30,7 @@ interface DashboardProps {
   photos?: MediaAsset[];
   videos?: MediaAsset[];
   updates?: RealTimeUpdate[];
+  reportFeed?: Report[];
   activities?: ProjectActivity[];
   onNavigate?: (view: string) => void;
   subcompanyOptions?: SelectOption[];
@@ -41,6 +42,16 @@ interface DashboardProps {
 }
 
 type SelectOption = { value: string; label: string; description?: string };
+
+type RecentFeedItem = {
+  id: string;
+  project_id: string;
+  title: string;
+  date?: string;
+  description?: string;
+  drive_link?: string;
+  kind: 'update' | 'report';
+};
 
 interface DashboardMetrics {
   beneficiaries: { current: number; target: number };
@@ -80,6 +91,7 @@ export default function Dashboard({
   photos = [],
   videos = [],
   updates = [],
+  reportFeed = [],
   activities = [],
   onNavigate,
   subcompanyOptions = [],
@@ -110,7 +122,7 @@ export default function Dashboard({
   const [budgetModalGroupProjectName, setBudgetModalGroupProjectName] = useState<string | null>(null);
   const [modalReturnMode, setModalReturnMode] = useState<'state-selector' | 'location-selector' | null>(null);
   const canEditMetrics = Boolean(onUpdateProject && user?.role !== 'client');
-  const [selectedUpdate, setSelectedUpdate] = useState<RealTimeUpdate | null>(null);
+  const [selectedUpdate, setSelectedUpdate] = useState<RecentFeedItem | null>(null);
   const [recentItemsProjectFilter, setRecentItemsProjectFilter] = useState('all');
   const [recentUpdatesProjectFilter, setRecentUpdatesProjectFilter] = useState('all');
 
@@ -240,7 +252,7 @@ export default function Dashboard({
   const selectedUpdateProject = selectedUpdate ? projectsById.get(selectedUpdate.project_id) : undefined;
   const selectedUpdateDate = selectedUpdate?.date
     ? new Date(selectedUpdate.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    : 'Date unknown';
+    : null;
   const selectedUpdateTime = selectedUpdate?.date
     ? new Date(selectedUpdate.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
     : '';
@@ -351,7 +363,7 @@ export default function Dashboard({
   const activeMetrics = useMemo(() => {
     const result: Array<{ key: string; current: number; target: number }> = [];
     Object.entries(metrics).forEach(([key, value]) => {
-      if (value.current > 0) {
+      if (value.current > 0 || value.target > 0) {
         result.push({ key, current: value.current, target: value.target });
       }
     });
@@ -370,14 +382,38 @@ export default function Dashboard({
     });
   }, [photos, videos, visibleProjectIds]);
 
-  const recentUpdates = useMemo(() => {
-    const filtered = updates.filter((update) => visibleProjectIds.includes(update.project_id));
-    return filtered.sort((a, b) => {
+  const recentUpdates = useMemo<RecentFeedItem[]>(() => {
+    const updateItems: RecentFeedItem[] = updates
+      .filter((update) => visibleProjectIds.includes(update.project_id))
+      .map((update) => ({
+        id: update.id,
+        project_id: update.project_id,
+        title: update.title,
+        date: update.date,
+        description: update.description,
+        drive_link: update.drive_link,
+        kind: 'update',
+      }));
+
+    const reportItems: RecentFeedItem[] = reportFeed
+      .filter((report) => visibleProjectIds.includes(report.project_id))
+      .map((report) => ({
+        id: report.id,
+        project_id: report.project_id,
+        title: report.title,
+        date: report.date,
+        description: '',
+        drive_link: report.drive_link,
+        kind: 'report',
+      }));
+
+    const feed = [...updateItems, ...reportItems];
+    return feed.sort((a, b) => {
       const aTime = Date.parse(a.date ?? '') || 0;
       const bTime = Date.parse(b.date ?? '') || 0;
       return bTime - aTime;
     });
-  }, [updates, visibleProjectIds]);
+  }, [updates, reportFeed, visibleProjectIds]);
 
   const projectsWithMedia = useMemo(() => {
     const projectIds = new Set(recentMedia.map((m) => m.project_id));
@@ -579,16 +615,6 @@ export default function Dashboard({
   };
 
   const sanitizeBudgetValue = (value?: number) => (typeof value === 'number' && Number.isFinite(value) ? value : 0);
-
-  const handleEditClick = (key: string, current: number, target: number) => {
-    if (!canEditMetrics) return;
-    if (!selectedProjectId) {
-      alert("Please select a specific project from the dropdown to edit metrics.");
-      return;
-    }
-    setEditingMetric(key);
-    setEditValues({ current, target });
-  };
 
   const handleSaveMetric = async () => {
     if (!canEditMetrics || !selectedProjectId || !editingMetric || !onUpdateProject) return;
@@ -861,14 +887,10 @@ export default function Dashboard({
                           <p className="text-sm font-semibold text-foreground mb-2">Impact Metrics</p>
                           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                             {project.impact_metrics.map((metric) => {
-                              const achieved = metric.achieved_value;
-                              const target = metric.target_value;
+                              const achieved = typeof metric.achieved_value === 'number' ? metric.achieved_value : 0;
+                              const target = typeof metric.target_value === 'number' ? metric.target_value : 0;
+                              const achievedLabel = achieved.toLocaleString('en-IN');
                               const targetLabel = target > 0 ? target.toLocaleString('en-IN') : '—';
-                              const progress = target > 0
-                                ? Math.min((achieved / target) * 100, 100)
-                                : achieved > 0
-                                  ? 100
-                                  : 0;
                               return (
                                 <div
                                   key={`${project.id}-${metric.id}`}
@@ -877,22 +899,13 @@ export default function Dashboard({
                                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
                                     {formatMetricLabel(metric.metric_name || metric.key)}
                                   </p>
-                                  <p className="text-[10px] uppercase tracking-[0.4em] text-muted-foreground mt-1">Achieved</p>
+                                  <p className="text-[10px] uppercase tracking-[0.4em] text-muted-foreground mt-1">Done / Total</p>
                                   <p className="text-2xl font-bold text-foreground">
-                                    {achieved.toLocaleString('en-IN')}
+                                    {`${achievedLabel}/${targetLabel}`}
                                   </p>
                                   {metric.unit_of_measurement && (
                                     <p className="text-[10px] text-muted-foreground truncate">{metric.unit_of_measurement}</p>
                                   )}
-                                  <div className="flex items-center justify-between text-[11px] text-muted-foreground mt-2">
-                                    <span>Target {targetLabel}</span>
-                                    <span>{`${Math.round(progress)}%`}</span>
-                                  </div>
-                                  <Progress
-                                    value={progress}
-                                    className="h-1 mt-2"
-                                    indicatorClassName="bg-gradient-to-r from-emerald-500 to-emerald-600"
-                                  />
                                 </div>
                               );
                             })}
@@ -1550,7 +1563,15 @@ export default function Dashboard({
                 <ScrollArea className="max-h-[420px] pr-2">
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
                     {activeMetrics.map((metric) => {
-                      const percentage = metric.target > 0 ? Math.min((metric.current / metric.target) * 100, 100) : 100;
+                      const showDoneTotal = metric.key === 'budget' || !['beneficiaries', 'projects_active'].includes(metric.key);
+                      const currentLabel = metric.key === 'budget'
+                        ? formatCurrency(metric.current)
+                        : metric.current.toLocaleString();
+                      const targetLabel = metric.target > 0
+                        ? (metric.key === 'budget' ? formatCurrency(metric.target) : metric.target.toLocaleString())
+                        : null;
+                      const percentage = metric.target > 0 ? Math.min((metric.current / metric.target) * 100, 100) : 0;
+                      const valueLabel = showDoneTotal && targetLabel ? `${currentLabel}/${targetLabel}` : currentLabel;
                       return (
                         <div 
                           key={metric.key}
@@ -1560,9 +1581,7 @@ export default function Dashboard({
                             {getMetricIcon(metric.key)}
                           </div>
                           <p className="text-2xl font-bold text-foreground">
-                            {metric.key === 'budget' 
-                              ? formatCurrency(metric.current)
-                              : metric.current.toLocaleString()}
+                            {valueLabel}
                           </p>
                           <p className="text-xs text-muted-foreground truncate">
                             {getMetricTitle(metric.key)}
@@ -1625,12 +1644,12 @@ export default function Dashboard({
                   <div className="space-y-3">
                     <ScrollArea className="max-h-[420px] pr-2">
                       <div className="space-y-3">
-                        {filteredRecentUpdates.slice(0, 5).map((update) => {
+                        {filteredRecentUpdates.map((update: RecentFeedItem) => {
                           const project = projectsById.get(update.project_id);
                           const projectIdentity = formatProjectIdentity(project);
                           const updateDate = update.date
                             ? new Date(update.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                            : 'Date unknown';
+                            : null;
                           return (
                             <Card
                               key={update.id}
@@ -1651,9 +1670,11 @@ export default function Dashboard({
                                   <Badge variant="secondary" className="text-[11px] px-3 py-1 rounded-full">
                                     {projectIdentity}
                                   </Badge>
-                                  <Badge variant="outline" className="text-[11px] px-3 py-0 h-7">
-                                    {updateDate}
-                                  </Badge>
+                                  {updateDate && (
+                                    <Badge variant="outline" className="text-[11px] px-3 py-0 h-7">
+                                      {updateDate}
+                                    </Badge>
+                                  )}
                                 </div>
                                 <p className="text-sm font-semibold text-foreground line-clamp-2">
                                   {update.title || 'Project Update'}
@@ -1695,15 +1716,17 @@ export default function Dashboard({
                 >
                   <DialogContent className="max-w-5xl max-h-[90vh]">
                     <DialogHeader>
-                      <DialogTitle>Update Details</DialogTitle>
+                      <DialogTitle>{selectedUpdate?.kind === 'report' ? 'Report Details' : 'Update Details'}</DialogTitle>
                       <DialogDescription className="space-y-1">
                         <span className="text-[11px] uppercase tracking-[0.3em] text-muted-foreground">
                           {selectedUpdateIdentity || 'Unknown project'}
                         </span>
-                        <span className="text-xs text-muted-foreground">
-                          {selectedUpdateDate}
-                          {selectedUpdateTime ? ` • ${selectedUpdateTime}` : ''}
-                        </span>
+                        {selectedUpdateDate && (
+                          <span className="text-xs text-muted-foreground">
+                            {selectedUpdateDate}
+                            {selectedUpdateTime ? ` • ${selectedUpdateTime}` : ''}
+                          </span>
+                        )}
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 mt-2">

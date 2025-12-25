@@ -70,6 +70,7 @@ export interface Project {
   csr_partner_id: string;
   name: string;
   code: string;
+  project_code?: string;
   description?: string;
   status: string;
   location?: string;
@@ -169,7 +170,7 @@ export interface Report {
   id: string;
   project_id: string;
   title: string;
-  date: string;
+  date?: string;
   drive_link?: string;
   source?: 'report' | 'monthly' | 'merged';
 }
@@ -205,7 +206,7 @@ export interface Media {
   title: string;
   description?: string;
   type: 'photo' | 'video';
-  date: string;
+  date?: string;
   is_geo_tagged: boolean;
   drive_link: string;
   news_channel?: string;
@@ -218,7 +219,7 @@ export interface Article {
   project_id: string;
   title: string;
   description?: string;
-  date: string;
+  date?: string;
   is_featured: boolean;
   drive_link: string;
   update_id?: string;

@@ -441,6 +441,17 @@ CREATE TABLE public.event_attendance (
   CONSTRAINT event_attendance_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.calendar_events(id),
   CONSTRAINT event_attendance_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
+CREATE TABLE public.event_email_reminders (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  calendar_event_id uuid NOT NULL,
+  reminder_type text NOT NULL DEFAULT 'two_day'::text,
+  reminder_for_date date NOT NULL,
+  recipients ARRAY NOT NULL DEFAULT '{}'::text[],
+  sent_at timestamp with time zone NOT NULL DEFAULT now(),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT event_email_reminders_pkey PRIMARY KEY (id),
+  CONSTRAINT event_email_reminders_calendar_event_id_fkey FOREIGN KEY (calendar_event_id) REFERENCES public.calendar_events(id)
+);
 CREATE TABLE public.expense_approvals (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   expense_id uuid NOT NULL,
@@ -1049,6 +1060,17 @@ CREATE TABLE public.system_logs (
   context jsonb DEFAULT '{}'::jsonb,
   created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT system_logs_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.task_reminder_acknowledgments (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  task_id uuid NOT NULL,
+  reminder_date date NOT NULL,
+  acknowledged_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT task_reminder_acknowledgments_pkey PRIMARY KEY (id),
+  CONSTRAINT task_reminder_acknowledgments_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT task_reminder_acknowledgments_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.tasks(id)
 );
 CREATE TABLE public.task_time_logs (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

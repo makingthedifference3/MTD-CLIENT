@@ -25,7 +25,7 @@ interface ReportsProps {
 
 type ReportPreviewItem =
   | (RealTimeUpdate & { kind: 'update' })
-  | (ReportType & { kind: 'report' });
+  | (ReportType & { kind: 'report'; description?: string; is_downloadable?: boolean });
 
 interface ReportPeriodGroup {
   key: string;
@@ -36,9 +36,9 @@ interface ReportPeriodGroup {
 }
 
 const parseReportDate = (value?: string) => {
-  if (!value) return new Date();
+  if (!value) return null;
   const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
 const formatMonthLabel = (date: Date) =>
@@ -52,9 +52,14 @@ type ReportMode = 'monthly' | 'quarterly' | 'custom';
 
 const groupReportsByPeriod = (project: Project, reports: ReportType[], grouping: ReportGrouping): ReportPeriodGroup[] => {
   const groups = new Map<string, ReportPeriodGroup>();
+  const undatedReports: ReportType[] = [];
 
   reports.forEach((report) => {
     const parsed = parseReportDate(report.date);
+    if (!parsed) {
+      undatedReports.push(report);
+      return;
+    }
     const year = parsed.getFullYear();
     const month = parsed.getMonth();
     const quarter = Math.floor(month / 3) + 1;
@@ -87,8 +92,25 @@ const groupReportsByPeriod = (project: Project, reports: ReportType[], grouping:
       ...group,
       reports: group.reports
         .slice()
-        .sort((a, b) => parseReportDate(b.date).getTime() - parseReportDate(a.date).getTime()),
+        .sort((a, b) => {
+          const aDate = parseReportDate(a.date);
+          const bDate = parseReportDate(b.date);
+          return (bDate?.getTime() ?? 0) - (aDate?.getTime() ?? 0);
+        }),
     }))
+    .concat(
+      undatedReports.length
+        ? [
+            {
+              key: `${project.id}-undated`,
+              projectId: project.id,
+              periodLabel: 'Undated',
+              latestTimestamp: 0,
+              reports: undatedReports.slice().sort((a, b) => (a.title || '').localeCompare(b.title || '')),
+            },
+          ]
+        : []
+    )
     .sort((a, b) => b.latestTimestamp - a.latestTimestamp);
 };
 
@@ -109,18 +131,42 @@ const groupReportsByCustomRange = (
   fromISO?: string,
   toISO?: string
 ): ReportPeriodGroup[] => {
-  if (!reports.length) return [];
+  const datedReports = reports
+    .map((report) => parseReportDate(report.date))
+    .filter((date): date is Date => Boolean(date));
+  const undated = reports.filter((report) => !parseReportDate(report.date));
+
+  if (!datedReports.length && !undated.length) return [];
   const label = formatRangeLabel(fromISO, toISO);
-  const latestTimestamp = Math.max(...reports.map((r) => parseReportDate(r.date).getTime()));
-  return [
-    {
+  const latestTimestamp = datedReports.length ? Math.max(...datedReports.map((date) => date.getTime())) : 0;
+  const datedReportIds = new Set(reports.filter((report) => parseReportDate(report.date)).map((report) => report.id));
+  const groups: ReportPeriodGroup[] = [];
+  if (datedReports.length) {
+    groups.push({
       key: `${project.id}-custom-${fromISO ?? 'start'}-${toISO ?? 'end'}`,
       projectId: project.id,
       periodLabel: label,
       latestTimestamp,
-      reports: reports.slice().sort((a, b) => parseReportDate(b.date).getTime() - parseReportDate(a.date).getTime()),
-    },
-  ];
+      reports: reports
+        .filter((report) => datedReportIds.has(report.id))
+        .slice()
+        .sort((a, b) => {
+          const aDate = parseReportDate(a.date);
+          const bDate = parseReportDate(b.date);
+          return (bDate?.getTime() ?? 0) - (aDate?.getTime() ?? 0);
+        }),
+    });
+  }
+  if (undated.length) {
+    groups.push({
+      key: `${project.id}-undated`,
+      projectId: project.id,
+      periodLabel: 'Undated',
+      latestTimestamp: 0,
+      reports: undated.slice().sort((a, b) => (a.title || '').localeCompare(b.title || '')),
+    });
+  }
+  return groups;
 };
 
 export default function Reports({
@@ -148,6 +194,20 @@ export default function Reports({
 
   const baseReports = reports.filter((r) => projectFilters.visibleProjectIds.includes(r.project_id));
 
+  const combinedRealTimeItems = useMemo<ReportPreviewItem[]>(() => {
+    const updateItems: ReportPreviewItem[] = filteredUpdates.map((update) => ({ ...update, kind: 'update' }));
+    const reportItems: ReportPreviewItem[] = baseReports.map((report) => ({
+      ...report,
+      kind: 'report',
+      is_downloadable: Boolean(report.drive_link),
+    }));
+    return [...updateItems, ...reportItems].sort((a, b) => {
+      const aTs = a.date ? Date.parse(a.date) : 0;
+      const bTs = b.date ? Date.parse(b.date) : 0;
+      return bTs - aTs;
+    });
+  }, [baseReports, filteredUpdates]);
+
   const isCustomMode = reportMode === 'custom';
   const reportDateRangeSelected = isCustomMode && Boolean(reportFromDate || reportToDate);
   const reportMergeEnabled = reportMode !== 'custom' || Boolean(reportFromDate && reportToDate);
@@ -159,12 +219,15 @@ export default function Reports({
     const from = reportFromDate ? new Date(reportFromDate) : null;
     const to = reportToDate ? new Date(reportToDate) : null;
 
-    const normalize = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-    const fromTs = from ? normalize(from) : null;
-    const toTs = to ? normalize(to) : null;
+    const normalize = (date?: Date | null) =>
+      date ? new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime() : null;
+    const fromTs = normalize(from);
+    const toTs = normalize(to);
 
     return baseReports.filter((report) => {
-      const reportTs = normalize(parseReportDate(report.date));
+      const reportDate = parseReportDate(report.date);
+      const reportTs = normalize(reportDate);
+      if (reportTs === null) return true;
       if (fromTs !== null && reportTs < fromTs) return false;
       if (toTs !== null && reportTs > toTs) return false;
       return true;
@@ -186,10 +249,10 @@ export default function Reports({
         .map((project) => ({
           projectId: project.id,
           projectName: project.name || 'Unnamed Project',
-          items: filteredUpdates.filter((update) => update.project_id === project.id),
+          items: combinedRealTimeItems.filter((item) => item.project_id === project.id),
         }))
         .filter((group) => group.items.length > 0),
-    [orderedProjects, filteredUpdates]
+    [orderedProjects, combinedRealTimeItems]
   );
 
   const projectMonthlyReportGroups = useMemo(
@@ -282,7 +345,7 @@ export default function Reports({
         id: `${projectName || 'merged'}-${group.key}`,
         project_id: group.projectId,
         title: `${projectName || 'Merged Report'} • ${group.periodLabel}`,
-        date: new Date().toISOString(),
+        date: undefined,
         drive_link: url,
         kind: 'report',
         source: 'merged',
@@ -373,11 +436,18 @@ export default function Reports({
                     {group.items.map((update) => {
                       const project = projectsById.get(update.project_id);
                       const projectIdentity = formatProjectIdentity(project);
-                      const formattedDate = new Date(update.date).toLocaleDateString('en-GB');
+                      const hasDate = Boolean(update.date);
+                      const formattedDate = hasDate
+                        ? new Date(update.date!).toLocaleDateString('en-GB')
+                        : '';
+                      const updateLabelMatch = update.title.match(/Update\s*\d+/i);
+                      const displayTitle = updateLabelMatch
+                        ? updateLabelMatch[0]
+                        : update.title.replace(/\(Report\)/i, '').trim();
                       return (
                         <div
                           key={update.id}
-                          onClick={() => handlePreview({ ...update, kind: 'update' })}
+                          onClick={() => handlePreview(update)}
                           role="button"
                           tabIndex={0}
                           className="flex items-center justify-between p-4 rounded-xl hover:bg-accent transition-all duration-300 group border border-border hover:border-emerald-300 dark:hover:border-emerald-600 cursor-pointer focus-visible:outline focus-visible:ring-2 focus-visible:ring-emerald-500"
@@ -387,7 +457,8 @@ export default function Reports({
                               {projectIdentity}
                             </p>
                             <p className="text-sm font-bold text-foreground dark:text-slate-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
-                              {update.title} - {formattedDate}
+                              {displayTitle}
+                              {hasDate && ` - ${formattedDate}`}
                             </p>
                             {update.description && (
                               <p className="text-xs text-muted-foreground line-clamp-2">
@@ -420,7 +491,7 @@ export default function Reports({
                 </div>
               ))}
 
-              {(!loading && filteredUpdates.length === 0) && (
+              {(!loading && combinedRealTimeItems.length === 0) && (
                 <div className="text-center text-muted-foreground font-semibold py-6">
                   No updates found for the selected criteria.
                 </div>
@@ -532,7 +603,10 @@ export default function Reports({
                                 </p>
                                 {primaryReport && (
                                   <p className="text-xs text-muted-foreground">
-                                    Latest: {primaryReport.title} • {new Date(primaryReport.date).toLocaleDateString('en-GB')}
+                                    Latest: {primaryReport.title}
+                                    {primaryReport.date && (
+                                      <> • {new Date(primaryReport.date).toLocaleDateString('en-GB')}</>
+                                    )}
                                   </p>
                                 )}
                               </div>
@@ -588,7 +662,9 @@ export default function Reports({
                                   const project = projectsById.get(report.project_id);
                                   const projectIdentity = formatProjectIdentity(project);
                                   const sourceLabel = formatSourceLabel(report.source);
-                                  const formattedDate = new Date(report.date).toLocaleDateString('en-GB');
+                                  const formattedDate = report.date
+                                    ? new Date(report.date).toLocaleDateString('en-GB')
+                                    : null;
                                   return (
                                     <div
                                       key={report.id}
@@ -611,9 +687,11 @@ export default function Reports({
                                             </Badge>
                                           )}
                                         </div>
-                                        <p className="text-xs text-muted-foreground font-semibold">
-                                          📅 {formattedDate}
-                                        </p>
+                                        {formattedDate && (
+                                          <p className="text-xs text-muted-foreground font-semibold">
+                                            📅 {formattedDate}
+                                          </p>
+                                        )}
                                       </div>
 
                                       <Button
@@ -674,8 +752,10 @@ export default function Reports({
                     {previewItem.title}
                   </DialogTitle>
                   <DialogDescription>
-                    {formatProjectIdentity(projectsById.get(previewItem.project_id))} •{' '}
-                    {new Date(previewItem.date).toLocaleDateString('en-GB')}
+                    {formatProjectIdentity(projectsById.get(previewItem.project_id))}
+                    {previewItem.date && (
+                      <> • {new Date(previewItem.date).toLocaleDateString('en-GB')}</>
+                    )}
                   </DialogDescription>
                 </DialogHeader>
 

@@ -82,6 +82,14 @@ interface ReportRow {
   report_drive_link?: string | null;
   generated_date?: string | null;
   submitted_date?: string | null;
+  approved_date?: string | null;
+  sent_date?: string | null;
+  publication_date?: string | null;
+  data?: Record<string, unknown> | null;
+  charts?: Record<string, unknown> | null;
+  metrics?: Record<string, unknown> | null;
+  is_public?: boolean | null;
+  is_sent_to_client?: boolean | null;
 }
 
 interface UpdateRow {
@@ -117,6 +125,8 @@ interface MediaArticleRow {
   is_downloadable?: boolean | null;
   update_id?: string | null;
   update_title?: string | null;
+  publication_date?: string | null;
+  created_at?: string | null;
 }
 
 interface CalendarEventRow {
@@ -159,6 +169,8 @@ const safeString = (value?: string | null, fallback = '') => value ?? fallback;
 const safeNumber = (value?: number | null, fallback = 0) =>
   typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 
+const notNull = <T,>(value: T | null): value is T => value !== null;
+
 const normalizeMetricKey = (label?: string | null) => {
   if (!label) return '';
   return label
@@ -170,7 +182,7 @@ const normalizeMetricKey = (label?: string | null) => {
 
 const buildImpactMetrics = (rows: ProjectImpactMetricRow[]): ProjectImpactMetric[] =>
   rows
-    .map((row) => {
+    .map((row): ProjectImpactMetric | null => {
       if (!row.project_id) return null;
       const name = safeString(row.metric_name, 'Metric');
       const key = normalizeMetricKey(name);
@@ -195,7 +207,7 @@ const buildImpactMetrics = (rows: ProjectImpactMetricRow[]): ProjectImpactMetric
         last_updated_date: row.last_updated_date ?? undefined,
       };
     })
-    .filter((metric): metric is ProjectImpactMetric => Boolean(metric));
+    .filter(notNull);
 
 const buildProjectMetrics = (
   row: ProjectRow,
@@ -341,14 +353,25 @@ export const mapTimelines = (rows: TimelineRow[]): Timeline[] =>
 export const mapReports = (rows: ReportRow[]): Report[] =>
   rows
     .filter((row) => row.id && row.project_id)
-    .map((row) => ({
-      id: row.id,
-      project_id: row.project_id as string,
-      title: safeString(row.title, row.report_code ?? 'Report'),
-      date: toISODate(row.generated_date ?? row.submitted_date ?? row.period_to ?? row.period_from),
-      drive_link: row.report_drive_link ?? undefined,
-      source: 'report',
-    }));
+    .map((row) => {
+      const rawDate =
+        row.publication_date
+        ?? row.generated_date
+        ?? row.submitted_date
+        ?? row.approved_date
+        ?? row.sent_date
+        ?? row.period_to
+        ?? row.period_from;
+
+      return {
+        id: row.id,
+        project_id: row.project_id as string,
+        title: safeString(row.title, row.report_code ?? 'Report'),
+        date: rawDate ? toNullableISODate(rawDate) : undefined,
+        drive_link: row.report_drive_link ?? undefined,
+        source: 'report',
+      };
+    });
 
 export const mapUpdates = (rows: UpdateRow[]): RealTimeUpdate[] =>
   rows
@@ -373,7 +396,8 @@ export const splitMediaArticles = (rows: MediaArticleRow[]): {
 
   rows.forEach((row) => {
     const mediaType = row.media_type?.toLowerCase();
-    const baseDate = toISODate(row.captured_at ?? row.event_date ?? row.date);
+    const mediaDate = toNullableISODate(row.created_at);
+    const articleDate = toNullableISODate(row.publication_date);
     const title = safeString(row.title, 'Media Asset');
     const description = typeof row.description === 'string' ? row.description : undefined;
 
@@ -400,7 +424,7 @@ export const splitMediaArticles = (rows: MediaArticleRow[]): {
         title,
         description,
         type: mediaType === 'video' ? 'video' : 'photo',
-        date: baseDate,
+        date: mediaDate,
         is_geo_tagged: Boolean(row.is_geo_tagged),
         drive_link: row.drive_link || row.drive_folder_link || '',
         news_channel: row.news_channel ?? undefined,
@@ -415,7 +439,7 @@ export const splitMediaArticles = (rows: MediaArticleRow[]): {
         project_id: row.project_id as string,
         title,
         description,
-        date: baseDate,
+        date: articleDate,
         is_featured: Boolean(row.is_featured),
         drive_link: row.article_url || row.drive_link || '',
         update_id: row.update_id ?? undefined,

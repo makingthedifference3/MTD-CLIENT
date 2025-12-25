@@ -157,9 +157,11 @@ export default function Reports({ projects, updates, reports, projectFilters, br
                           <p className="text-sm font-black text-slate-900 mb-1 group-hover:text-indigo-600 transition-colors">
                             {report.title}
                           </p>
-                          <p className="text-xs text-slate-600 font-semibold">
-                            📅 {new Date(report.date).toLocaleDateString('en-GB')}
-                          </p>
+                          {report.date && (
+                            <p className="text-xs text-slate-600 font-semibold">
+                              📅 {new Date(report.date).toLocaleDateString('en-GB')}
+                            </p>
+                          )}
                         </div>
 
                         <button

@@ -44,14 +44,20 @@ export default function Media({
   const projectLookup = useMemo(() => {
     const map: Record<string, { id: string; name: string; state?: string; start_date?: string }> = {};
     projects.forEach((project) => {
-      map[project.id] = project;
+      if (!project.id) return;
+      map[project.id] = {
+        id: project.id,
+        name: project.name ?? 'Unnamed Project',
+        state: project.state ?? undefined,
+        start_date: project.start_date ?? undefined,
+      };
     });
     return map;
   }, [projects]);
 
   const orderedProjects = useMemo(() => {
     const base = projectFilters.filteredProjects.length ? projectFilters.filteredProjects : projects;
-    return base.filter((project) => projectFilters.visibleProjectIds.includes(project.id));
+    return base.filter((project) => (project.id ? projectFilters.visibleProjectIds.includes(project.id) : false));
   }, [projectFilters.filteredProjects, projectFilters.visibleProjectIds, projects]);
 
   const groupedPhotos = useMemo(
@@ -136,7 +142,9 @@ export default function Media({
                     {group.items.map((photo) => {
                       const project = projectsById.get(photo.project_id);
                       const projectIdentity = formatProjectIdentity(project);
-                      const formattedDate = new Date(photo.date).toLocaleDateString('en-GB');
+                      const formattedDate = photo.date
+                        ? new Date(photo.date).toLocaleDateString('en-GB')
+                        : null;
                       return (
                         <div
                           key={photo.id}
@@ -151,7 +159,7 @@ export default function Media({
                             </p>
                             <p className="text-sm font-semibold text-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
                               {photo.is_geo_tagged && '📍 '}
-                              {photo.title} - {formattedDate}
+                              {photo.title}{formattedDate ? ` - ${formattedDate}` : ''}
                             </p>
                             {photo.description && (
                               <p className="text-xs text-muted-foreground line-clamp-2">
@@ -213,7 +221,9 @@ export default function Media({
                     {group.items.map((video) => {
                       const project = projectsById.get(video.project_id);
                       const projectIdentity = formatProjectIdentity(project);
-                      const formattedDate = new Date(video.date).toLocaleDateString('en-GB');
+                      const formattedDate = video.date
+                        ? new Date(video.date).toLocaleDateString('en-GB')
+                        : null;
                       const displayTitle = video.update_title || video.title;
                       return (
                         <div
@@ -229,7 +239,7 @@ export default function Media({
                             </p>
                             <p className="text-sm font-semibold text-foreground group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                               {video.is_geo_tagged && '📍 '}
-                              {displayTitle} - {formattedDate}
+                              {displayTitle}{formattedDate ? ` - ${formattedDate}` : ''}
                             </p>
                             {video.description && (
                               <p className="text-xs text-muted-foreground line-clamp-2">
@@ -291,8 +301,10 @@ export default function Media({
                     {selectedMedia.update_title || selectedMedia.title}
                   </DialogTitle>
                   <DialogDescription>
-                    {(projectLookup[selectedMedia.project_id]?.name || 'Project media')} •{' '}
-                    {new Date(selectedMedia.date).toLocaleDateString('en-GB')}
+                    {(projectLookup[selectedMedia.project_id]?.name || 'Project media')}
+                    {selectedMedia.date && (
+                      <> • {new Date(selectedMedia.date).toLocaleDateString('en-GB')}</>
+                    )}
                   </DialogDescription>
                 </DialogHeader>
 

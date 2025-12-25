@@ -44,6 +44,7 @@ interface PartnerCollections {
   activities: ProjectActivity[];
   reports: Report[];
   updates: RealTimeUpdate[];
+  rawReports: Report[];
   mediaPhotos: MediaAsset[];
   mediaVideos: MediaAsset[];
   articles: ArticleAsset[];
@@ -71,6 +72,7 @@ export default function Portal() {
     activities: [],
     reports: [],
     updates: [],
+    rawReports: [],
     mediaPhotos: [],
     mediaVideos: [],
     articles: [],
@@ -122,6 +124,7 @@ export default function Portal() {
         let mappedActivities: ProjectActivity[] = [];
         let mappedReports: Report[] = [];
         let mappedUpdates: RealTimeUpdate[] = [];
+        let rawReports: Report[] = [];
         let mediaPhotos: MediaAsset[] = [];
         let mediaVideos: MediaAsset[] = [];
         let mappedArticles: ArticleAsset[] = [];
@@ -207,10 +210,10 @@ export default function Portal() {
             }));
           }
 
-          const normalizeDate = (value?: string | null) => {
-            if (!value) return new Date().toISOString().slice(0, 10);
+          const normalizeToISO = (value?: string | null) => {
+            if (!value) return undefined;
             const parsed = new Date(value);
-            return Number.isNaN(parsed.getTime()) ? new Date().toISOString().slice(0, 10) : parsed.toISOString().slice(0, 10);
+            return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString().slice(0, 10);
           };
 
           const tempReports = (tempReportsRes.data ?? [])
@@ -219,10 +222,12 @@ export default function Portal() {
               id: String(row.id),
               project_id: row.project_id as string,
               title: row.update_number ? `Monthly Update ${row.update_number}` : 'Monthly Update',
-              date: normalizeDate(row.date_of_report as string | null | undefined),
+              date: normalizeToISO(row.date_of_report as string | null | undefined),
               drive_link: typeof row.pdf_link === 'string' ? row.pdf_link : undefined,
               source: 'monthly' as const,
             }));
+
+          rawReports = mapReports(reportsRes.data ?? []);
 
           const mergedReports = (mergedReportsRes.data ?? [])
             .filter((row: Record<string, unknown>) => row.id && row.project_id)
@@ -230,34 +235,43 @@ export default function Portal() {
               id: String(row.id),
               project_id: row.project_id as string,
               title: typeof row.title === 'string' ? row.title : 'Merged Monthly Report',
-              date: normalizeDate((row.end_date ?? row.start_date) as string | null | undefined),
+              date: normalizeToISO((row.end_date ?? row.start_date) as string | null | undefined),
               drive_link: typeof row.pdf_url === 'string' ? row.pdf_url : undefined,
               source: 'merged' as const,
             }));
 
+          const dateToTime = (value?: string) => (value ? new Date(value).getTime() : 0);
+
           mappedReports = [
             ...mergedReports,
             ...tempReports,
-            ...mapReports(reportsRes.data ?? []),
-          ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            ...rawReports,
+          ].sort((a, b) => dateToTime(b.date) - dateToTime(a.date));
+
+          const notNull = <T,>(value: T | null): value is T => value !== null;
 
           const tempUpdates = (tempReportsRes.data ?? [])
             .filter((row: Record<string, unknown>) => row.id && row.project_id)
-            .map((row: Record<string, unknown>) => ({
-              id: String(row.id),
-              project_id: row.project_id as string,
-              title: row.update_number ? `Update ${row.update_number}` : 'Update PDF',
-              date: normalizeDate(row.date_of_report as string | null | undefined),
-              description: typeof row.description === 'string' ? row.description : '',
-              drive_link: typeof row.pdf_link === 'string' ? row.pdf_link : undefined,
-              is_downloadable: Boolean(row.pdf_link),
-              source: 'temp' as const,
-            }));
+            .map((row: Record<string, unknown>) => {
+              const normalizedDate = normalizeToISO(row.date_of_report as string | null | undefined);
+              if (!normalizedDate) return null;
+              return {
+                id: String(row.id),
+                project_id: row.project_id as string,
+                title: row.update_number ? `Update ${row.update_number}` : 'Update PDF',
+                date: normalizedDate,
+                description: typeof row.description === 'string' ? row.description : '',
+                ...(typeof row.pdf_link === 'string' ? { drive_link: row.pdf_link } : {}),
+                is_downloadable: Boolean(row.pdf_link),
+                source: 'temp' as const,
+              };
+            })
+            .filter(notNull);
 
           mappedUpdates = [
             ...mapUpdates(updatesRes.data ?? []),
             ...tempUpdates,
-          ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          ].sort((a, b) => dateToTime(b.date) - dateToTime(a.date));
           
           const updateTitleById = new Map<string, string>(
             mappedUpdates.map((update) => [update.id, update.title])
@@ -287,6 +301,7 @@ export default function Portal() {
           timelines: mappedTimelines,
           activities: mappedActivities,
           reports: mappedReports,
+          rawReports,
           updates: mappedUpdates,
           mediaPhotos,
           mediaVideos,
@@ -521,6 +536,7 @@ export default function Portal() {
                 photos={collections.mediaPhotos}
                 videos={collections.mediaVideos}
                 updates={collections.updates}
+                reportFeed={collections.rawReports}
                 activities={collections.activities}
                 expenses={collections.expenses}
                 onNavigate={handleViewChange}
