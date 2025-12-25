@@ -1,4 +1,4 @@
-import type { Project } from '../types/csr';
+import type { Project, ProjectImpactMetric } from '../types/csr';
 
 export type DashboardMetricMap = Record<string, { current: number; target: number }>;
 
@@ -51,49 +51,18 @@ export function calculateDashboardMetrics(
     },
   };
 
-  const allMetricKeys = [
-    'pads_distributed',
-    'trees_planted',
-    'meals_served',
-    'students_enrolled',
-    'schools_renovated',
-    'sessions_conducted',
-    'libraries_setup',
-    'scholarships_given',
-    'ration_kits_distributed',
-    'families_fed',
-    'waste_collected_kg',
-    'plastic_recycled_kg',
-    'communities_covered',
-  ] as const;
-
-  // Initialize all metric keys
-  allMetricKeys.forEach((key) => {
-    aggregated[key] = { current: 0, target: 0 };
-  });
-
-  // Aggregate metrics from project_metrics JSONB
-  filtered.forEach((project) => {
-    if (!project.project_metrics) {
-      return;
+  const aggregateImpactMetric = (metric: ProjectImpactMetric) => {
+    const key = metric.key;
+    if (!aggregated[key]) {
+      aggregated[key] = { current: 0, target: 0 };
     }
+    aggregated[key].current += metric.achieved_value ?? 0;
+    aggregated[key].target += metric.target_value ?? 0;
+  };
 
-    Object.entries(project.project_metrics).forEach(([key, value]) => {
-      if (key === 'projects_active') {
-        if (value.target > 0) {
-          aggregated[key].target = value.target;
-        }
-        return;
-      }
-
-      if (!aggregated[key]) {
-        aggregated[key] = { current: 0, target: 0 };
-      }
-
-      if (value.target > 0) {
-        aggregated[key].target += value.target;
-      }
-      aggregated[key].current += value.current ?? 0;
+  filtered.forEach((project) => {
+    project.impact_metrics?.forEach((metric) => {
+      aggregateImpactMetric(metric);
     });
   });
 
