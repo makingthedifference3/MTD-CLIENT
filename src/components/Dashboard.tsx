@@ -1771,6 +1771,13 @@ export default function Dashboard({
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {activeMetrics.map((metric) => {
                   const percentage = metric.target > 0 ? Math.min((metric.current / metric.target) * 100, 100) : 100;
+                  const hideTargetLabel = ['beneficiaries', 'projects_active'].includes(metric.key);
+                  const showTargetInfo = metric.target > 0 && !hideTargetLabel;
+                  const isBudgetMetric = metric.key === 'budget';
+                  const targetLabel = isBudgetMetric ? 'Total Utilized' : 'Target';
+                  const targetValue = isBudgetMetric
+                    ? formatCurrency(metric.current)
+                    : metric.target.toLocaleString();
                   return (
                     <Card key={metric.key} className="group">
                       <CardContent className="p-5">
@@ -1799,7 +1806,7 @@ export default function Dashboard({
                             : metric.current.toLocaleString()}
                         </p>
                         
-                        {metric.target > 0 && (
+                        {showTargetInfo && (
                           <>
                             <Progress
                               value={percentage}
@@ -1808,7 +1815,7 @@ export default function Dashboard({
                             />
                             <div className="flex items-center justify-between text-xs">
                               <span className="text-muted-foreground">
-                                Target: {metric.key === 'budget' ? formatCurrency(metric.target) : metric.target.toLocaleString()}
+                                {targetLabel}: {targetValue}
                               </span>
                               <Badge variant={percentage >= 100 ? 'default' : 'secondary'}>
                                 {percentage.toFixed(0)}%
