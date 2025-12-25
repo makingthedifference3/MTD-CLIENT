@@ -1774,9 +1774,9 @@ export default function Dashboard({
                   const hideTargetLabel = ['beneficiaries', 'projects_active'].includes(metric.key);
                   const showTargetInfo = metric.target > 0 && !hideTargetLabel;
                   const isBudgetMetric = metric.key === 'budget';
-                  const targetLabel = isBudgetMetric ? 'Total Utilized' : 'Target';
+                  const targetLabel = isBudgetMetric ? 'Total Budget' : 'Target';
                   const targetValue = isBudgetMetric
-                    ? formatCurrency(metric.current)
+                    ? formatCurrency(metric.target)
                     : metric.target.toLocaleString();
                   return (
                     <Card key={metric.key} className="group">
