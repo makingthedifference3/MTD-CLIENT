@@ -192,11 +192,34 @@ export default function Reports({
 
   const filteredUpdates = updates.filter((u) => projectFilters.visibleProjectIds.includes(u.project_id));
 
-  const baseReports = reports.filter((r) => projectFilters.visibleProjectIds.includes(r.project_id));
+  const visibleReports = useMemo(
+    () => reports.filter((r) => projectFilters.visibleProjectIds.includes(r.project_id)),
+    [projectFilters.visibleProjectIds, reports]
+  );
+
+  const updatesWithPdf = useMemo<ReportType[]>(
+    () =>
+      filteredUpdates
+        .filter((update) => Boolean(update.drive_link))
+        .map((update) => ({
+          id: update.id,
+          project_id: update.project_id,
+          title: update.title,
+          date: update.date,
+          drive_link: update.drive_link,
+          source: update.source === 'temp' ? 'monthly' : 'report',
+        })),
+    [filteredUpdates]
+  );
+
+  const mergedReportEntries = useMemo<ReportType[]>(
+    () => [...visibleReports, ...updatesWithPdf],
+    [visibleReports, updatesWithPdf]
+  );
 
   const combinedRealTimeItems = useMemo<ReportPreviewItem[]>(() => {
     const updateItems: ReportPreviewItem[] = filteredUpdates.map((update) => ({ ...update, kind: 'update' }));
-    const reportItems: ReportPreviewItem[] = baseReports.map((report) => ({
+    const reportItems: ReportPreviewItem[] = visibleReports.map((report) => ({
       ...report,
       kind: 'report',
       is_downloadable: Boolean(report.drive_link),
@@ -206,15 +229,15 @@ export default function Reports({
       const bTs = b.date ? Date.parse(b.date) : 0;
       return bTs - aTs;
     });
-  }, [baseReports, filteredUpdates]);
+  }, [visibleReports, filteredUpdates]);
 
   const isCustomMode = reportMode === 'custom';
   const reportDateRangeSelected = isCustomMode && Boolean(reportFromDate || reportToDate);
   const reportMergeEnabled = reportMode !== 'custom' || Boolean(reportFromDate && reportToDate);
 
   const filteredReports = useMemo(() => {
-    if (!isCustomMode) return baseReports;
-    if (!reportDateRangeSelected) return baseReports;
+    if (!isCustomMode) return mergedReportEntries;
+    if (!reportDateRangeSelected) return mergedReportEntries;
 
     const from = reportFromDate ? new Date(reportFromDate) : null;
     const to = reportToDate ? new Date(reportToDate) : null;
@@ -224,7 +247,7 @@ export default function Reports({
     const fromTs = normalize(from);
     const toTs = normalize(to);
 
-    return baseReports.filter((report) => {
+    return mergedReportEntries.filter((report) => {
       const reportDate = parseReportDate(report.date);
       const reportTs = normalize(reportDate);
       if (reportTs === null) return true;
@@ -232,7 +255,7 @@ export default function Reports({
       if (toTs !== null && reportTs > toTs) return false;
       return true;
     });
-  }, [baseReports, isCustomMode, reportDateRangeSelected, reportFromDate, reportToDate]);
+  }, [mergedReportEntries, isCustomMode, reportDateRangeSelected, reportFromDate, reportToDate]);
   const singleProjectSelected = projectFilters.selectedProjectGroup !== 'all' && projectFilters.filteredProjects.length === 1;
   const currentProjectName = singleProjectSelected ? projectFilters.filteredProjects[0].name : null;
 
@@ -393,7 +416,7 @@ export default function Reports({
       <div className="p-8">
         <div className="mb-8">
           <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-2">
-            {currentProjectName ? `📄 ${currentProjectName}` : '📄 Reports & Updates'}
+            {currentProjectName ? `${currentProjectName} Reports & Updates` : 'Reports & Updates'}
           </h1>
           <p className="text-muted-foreground text-lg">
             {currentProjectName ? 'Project-specific reports and updates' : 'Combined reports from all projects'}
@@ -501,7 +524,7 @@ export default function Reports({
 
           <div className="bg-card rounded-xl border border-border p-6 shadow-md hover:shadow-lg hover:border-emerald-300 transition-all">
             <h2 className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-blue-600 mb-6 pb-4 border-b-2 border-indigo-200">
-              📄 REPORTS
+              📄 Reports
             </h2>
 
             <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
@@ -689,7 +712,7 @@ export default function Reports({
                                         </div>
                                         {formattedDate && (
                                           <p className="text-xs text-muted-foreground font-semibold">
-                                            📅 {formattedDate}
+                                            Date • {formattedDate}
                                           </p>
                                         )}
                                       </div>
@@ -748,7 +771,7 @@ export default function Reports({
               <>
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2 text-xl">
-                    {previewItem.kind === 'report' ? '📄' : '📢'}
+                    {previewItem.kind === 'report' ? 'Report' : 'Update'}
                     {previewItem.title}
                   </DialogTitle>
                   <DialogDescription>

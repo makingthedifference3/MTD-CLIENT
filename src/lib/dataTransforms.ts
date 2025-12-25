@@ -103,6 +103,12 @@ interface UpdateRow {
   is_downloadable?: boolean | null;
   beneficiaries_count?: number | null;
   is_public?: boolean | null;
+  pdf_url?: string | null;
+  update_no?: string | null;
+  update_type?: string | null;
+  location?: string | null;
+  is_sent_to_client?: boolean | null;
+  is_featured?: boolean | null;
 }
 
 interface MediaArticleRow {
@@ -376,16 +382,27 @@ export const mapReports = (rows: ReportRow[]): Report[] =>
 export const mapUpdates = (rows: UpdateRow[]): RealTimeUpdate[] =>
   rows
     .filter((row) => row.id && row.project_id)
-    .map((row) => ({
-      id: row.id,
-      project_id: row.project_id as string,
-      title: safeString(row.title, 'Field Update'),
-      date: toISODate(row.date),
-      description: row.description ?? '',
-      drive_link: row.drive_link ?? row.documents?.drive_link ?? undefined,
-      is_downloadable: Boolean(row.is_downloadable ?? row.is_public),
-      source: 'update',
-    }));
+    .map((row) => {
+      const fallbackTitle = row.update_no ? `Update ${row.update_no}` : 'Field Update';
+      const resolvedLink = row.pdf_url ?? row.drive_link ?? row.documents?.drive_link ?? undefined;
+      const hasDownloadLink = Boolean(resolvedLink);
+      return {
+        id: row.id,
+        project_id: row.project_id as string,
+        title: safeString(row.title, fallbackTitle),
+        date: toISODate(row.date),
+        description: row.description ?? '',
+        drive_link: resolvedLink ?? undefined,
+        is_downloadable: hasDownloadLink || Boolean(row.is_downloadable) || Boolean(row.is_public),
+        source: 'update',
+        update_no: row.update_no ?? undefined,
+        location: row.location ?? undefined,
+        update_type: row.update_type ?? undefined,
+        is_public: row.is_public ?? undefined,
+        is_sent_to_client: row.is_sent_to_client ?? undefined,
+        is_featured: row.is_featured ?? undefined,
+      };
+    });
 
 export const splitMediaArticles = (rows: MediaArticleRow[]): {
   media: Media[];

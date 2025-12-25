@@ -197,6 +197,12 @@ export interface RealTimeUpdate {
   description: string;
   drive_link?: string;
   is_downloadable: boolean;
+  update_no?: string;
+  location?: string;
+  update_type?: string;
+  is_public?: boolean;
+  is_sent_to_client?: boolean;
+  is_featured?: boolean;
   source?: 'update' | 'temp';
 }
 
