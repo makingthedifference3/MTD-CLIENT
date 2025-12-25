@@ -360,15 +360,18 @@ export default function Dashboard({
     }
   }, [modalMode]);
 
-  const activeMetrics = useMemo(() => {
-    const result: Array<{ key: string; current: number; target: number }> = [];
-    Object.entries(metrics).forEach(([key, value]) => {
-      if (value.current > 0 || value.target > 0) {
-        result.push({ key, current: value.current, target: value.target });
-      }
-    });
-    return result;
-  }, [metrics]);
+  const activeMetrics = useMemo(() =>
+    Object.entries(metrics).map(([key, value]) => ({ key, current: value.current, target: value.target })),
+    [metrics]
+  );
+
+  const impactMetricViewHeight = useMemo(() => {
+    const columns = 6;
+    const rows = Math.ceil(Math.max(activeMetrics.length, 1) / columns);
+    const cardHeight = 140;
+    const padding = 4; // gap roughly 16px per row
+    return Math.min((rows + 1) * (cardHeight + padding), 720);
+  }, [activeMetrics.length]);
 
   const recentMedia = useMemo(() => {
     const media = [
@@ -1560,7 +1563,10 @@ export default function Dashboard({
                 </div>
               </CardHeader>
               <CardContent>
-                <ScrollArea className="max-h-[420px] pr-2">
+                <ScrollArea
+                  className="pr-2"
+                  style={{ maxHeight: `${impactMetricViewHeight}px` }}
+                >
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
                     {activeMetrics.map((metric) => {
                       const showDoneTotal = metric.key === 'budget' || !['beneficiaries', 'projects_active'].includes(metric.key);
