@@ -8,7 +8,7 @@ import { formatProjectLabel, formatProjectIdentity } from '@/lib/projectFilters'
 import {
   Edit2, Save, Users, TrendingUp, IndianRupee, Heart, BookOpen, GraduationCap, 
   School, Library, Award, UtensilsCrossed, Package, Home, Trash2, TreePine, Recycle, 
-  Building2, Target, ArrowRight, ArrowLeft, Image, Wallet, ChevronRight, Activity, FileText, Download
+  Building2, Target, ArrowLeft, Image, Wallet, ChevronRight, Activity, FileText, Download
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -91,7 +91,6 @@ export default function Dashboard({
   const { partner, user } = useAuth();
   const { addToast } = useToast();
   const [selectedState, setSelectedState] = useState('all');
-  const [showImpactModal, setShowImpactModal] = useState(false);
   const [showProjectOverview, setShowProjectOverview] = useState(false);
   const [editingMetric, setEditingMetric] = useState<string | null>(null);
   const [editValues, setEditValues] = useState({ current: 0, target: 0 });
@@ -1536,7 +1535,7 @@ export default function Dashboard({
 
             {/* Impact Metrics */}
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
+              <CardHeader className="flex flex-row items-center gap-3">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center">
                     <TrendingUp className="w-6 h-6 text-white" />
@@ -1546,42 +1545,40 @@ export default function Dashboard({
                     <CardDescription>{activeMetrics.length} active metrics tracked</CardDescription>
                   </div>
                 </div>
-                <Button onClick={() => setShowImpactModal(true)}>
-                  View All Metrics <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                  {activeMetrics.slice(0, 6).map((metric) => {
-                    const percentage = metric.target > 0 ? Math.min((metric.current / metric.target) * 100, 100) : 100;
-                    return (
-                      <div 
-                        key={metric.key}
-                        className="p-4 rounded-xl bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
-                        onClick={() => setShowImpactModal(true)}
-                      >
-                        <div className="flex items-center gap-2 mb-2 text-primary">
-                          {getMetricIcon(metric.key)}
+                <ScrollArea className="max-h-[420px] pr-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    {activeMetrics.map((metric) => {
+                      const percentage = metric.target > 0 ? Math.min((metric.current / metric.target) * 100, 100) : 100;
+                      return (
+                        <div 
+                          key={metric.key}
+                          className="p-4 rounded-xl bg-muted/50 hover:bg-muted transition-colors"
+                        >
+                          <div className="flex items-center gap-2 mb-2 text-primary">
+                            {getMetricIcon(metric.key)}
+                          </div>
+                          <p className="text-2xl font-bold text-foreground">
+                            {metric.key === 'budget' 
+                              ? formatCurrency(metric.current)
+                              : metric.current.toLocaleString()}
+                          </p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {getMetricTitle(metric.key)}
+                          </p>
+                          {metric.target > 0 && (
+                            <Progress
+                              value={percentage}
+                              className="h-1 mt-2"
+                              indicatorClassName="bg-gradient-to-r from-emerald-500 to-emerald-600"
+                            />
+                          )}
                         </div>
-                        <p className="text-2xl font-bold text-foreground">
-                          {metric.key === 'budget' 
-                            ? formatCurrency(metric.current)
-                            : metric.current.toLocaleString()}
-                        </p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {getMetricTitle(metric.key)}
-                        </p>
-                        {metric.target > 0 && (
-                          <Progress
-                            value={percentage}
-                            className="h-1 mt-2"
-                            indicatorClassName="bg-gradient-to-r from-emerald-500 to-emerald-600"
-                          />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                </ScrollArea>
               </CardContent>
             </Card>
 
@@ -1754,83 +1751,6 @@ export default function Dashboard({
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>
-
-        {/* Impact Metrics Modal */}
-        <Dialog open={showImpactModal} onOpenChange={setShowImpactModal}>
-          <DialogContent className="max-w-4xl max-h-[85vh]">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center">
-                  <TrendingUp className="w-5 h-5 text-white" />
-                </div>
-                Impact Metrics
-              </DialogTitle>
-              <DialogDescription>{activeMetrics.length} metrics tracked across all projects</DialogDescription>
-            </DialogHeader>
-            <ScrollArea className="max-h-[60vh] pr-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {activeMetrics.map((metric) => {
-                  const percentage = metric.target > 0 ? Math.min((metric.current / metric.target) * 100, 100) : 100;
-                  const hideTargetLabel = ['beneficiaries', 'projects_active'].includes(metric.key);
-                  const showTargetInfo = metric.target > 0 && !hideTargetLabel;
-                  const isBudgetMetric = metric.key === 'budget';
-                  const targetLabel = isBudgetMetric ? 'Total Budget' : 'Target';
-                  const targetValue = isBudgetMetric
-                    ? formatCurrency(metric.target)
-                    : metric.target.toLocaleString();
-                  return (
-                    <Card key={metric.key} className="group">
-                      <CardContent className="p-5">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-                            {getMetricIcon(metric.key)}
-                          </div>
-                          {canEditMetrics && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="opacity-0 group-hover:opacity-100 transition-opacity"
-                              onClick={() => handleEditClick(metric.key, metric.current, metric.target)}
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </Button>
-                          )}
-                        </div>
-                        
-                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">
-                          {getMetricTitle(metric.key)}
-                        </p>
-                        <p className="text-3xl font-bold text-foreground mb-3">
-                          {metric.key === 'budget' 
-                            ? formatCurrency(metric.current)
-                            : metric.current.toLocaleString()}
-                        </p>
-                        
-                        {showTargetInfo && (
-                          <>
-                            <Progress
-                              value={percentage}
-                              className="h-2 mb-2"
-                              indicatorClassName="bg-gradient-to-r from-emerald-500 to-emerald-600"
-                            />
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="text-muted-foreground">
-                                {targetLabel}: {targetValue}
-                              </span>
-                              <Badge variant={percentage >= 100 ? 'default' : 'secondary'}>
-                                {percentage.toFixed(0)}%
-                              </Badge>
-                            </div>
-                          </>
-                        )}
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
-            </ScrollArea>
-          </DialogContent>
-        </Dialog>
 
         {/* Edit Metric Modal */}
         <Dialog open={!!editingMetric} onOpenChange={() => setEditingMetric(null)}>
