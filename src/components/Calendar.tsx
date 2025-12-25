@@ -1,12 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { CalendarEvent, Project } from '../types/csr';
 
 import type { SelectOption, UseProjectFiltersResult } from '../lib/projectFilters';
 import ProjectFilterBar from './ProjectFilterBar';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
+import { ScrollArea } from './ui/scroll-area';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
-import { ExternalLink, MapPin, CalendarDays } from 'lucide-react';
+import { ExternalLink, MapPin, CalendarDays, Table, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface CalendarProps {
   projects: Array<Partial<Project>>;
@@ -42,6 +43,8 @@ const toISO = (date: Date) => {
   return `${y}-${m}-${d}`;
 };
 
+const TABLE_PAGE_SIZE = 6;
+
 const parseISODate = (value?: string) => {
   if (!value) return null;
   const parsed = new Date(value);
@@ -65,6 +68,8 @@ export default function Calendar({
   });
   const [selectedDayISO, setSelectedDayISO] = useState<string | null>(null);
   const [eventsOpen, setEventsOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'calendar' | 'table'>('calendar');
+  const [tablePage, setTablePage] = useState(1);
 
   const singleProjectSelected = projectFilters.selectedProjectGroup !== 'all' && projectFilters.filteredProjects.length === 1;
   const currentProjectName = singleProjectSelected ? projectFilters.filteredProjects[0].name : null;
@@ -74,6 +79,37 @@ export default function Calendar({
   const visibleEvents = useMemo(() => {
     return events.filter((event) => projectFilters.visibleProjectIds.includes(event.project_id));
   }, [events, projectFilters.visibleProjectIds]);
+
+  const getEventPrimaryDate = (event: CalendarEvent) =>
+    parseISODate(event.start_date) ?? parseISODate(event.event_date);
+
+  const sortedVisibleEvents = useMemo(() => {
+    return [...visibleEvents].sort((a, b) => {
+      const aDate = getEventPrimaryDate(a);
+      const bDate = getEventPrimaryDate(b);
+      if (aDate && bDate) return aDate.getTime() - bDate.getTime();
+      if (aDate) return -1;
+      if (bDate) return 1;
+      return 0;
+    });
+  }, [visibleEvents]);
+
+  const tableTotalPages = Math.max(1, Math.ceil(sortedVisibleEvents.length / TABLE_PAGE_SIZE));
+
+  useEffect(() => {
+    setTablePage(1);
+  }, [sortedVisibleEvents]);
+
+  useEffect(() => {
+    if (tablePage > tableTotalPages) {
+      setTablePage(tableTotalPages);
+    }
+  }, [tablePage, tableTotalPages]);
+
+  const tableEventsPage = useMemo(() => {
+    const start = (tablePage - 1) * TABLE_PAGE_SIZE;
+    return sortedVisibleEvents.slice(start, start + TABLE_PAGE_SIZE);
+  }, [sortedVisibleEvents, tablePage]);
 
   const eventColorPalette = useMemo(
     () => [
@@ -222,6 +258,9 @@ export default function Calendar({
     return `${startLabel} - ${endLabel}`;
   };
 
+  const tableStartIndex = sortedVisibleEvents.length === 0 ? 0 : (tablePage - 1) * TABLE_PAGE_SIZE + 1;
+  const tableEndIndex = Math.min(sortedVisibleEvents.length, tablePage * TABLE_PAGE_SIZE);
+
   return (
     <div className="flex-1 bg-background overflow-auto">
       <div className="p-8">
@@ -230,7 +269,9 @@ export default function Calendar({
             {currentProjectName ? `🗓️ ${currentProjectName}` : '🗓️ Project Events'}
           </h1>
           <p className="text-muted-foreground text-lg">
-            {currentProjectName ? 'View and manage project events in calendar view' : 'View and manage all project events in calendar view'}
+            {currentProjectName
+              ? 'View and manage project events in calendar or table view'
+              : 'View and manage all project events in calendar or table view'}
           </p>
         </div>
 
@@ -250,133 +291,260 @@ export default function Calendar({
 
         <Card className="border border-border rounded-2xl shadow-sm">
           <div className="p-6">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setActiveMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
-                  aria-label="Previous month"
-                >
-                  ‹
-                </Button>
-                <h2 className="text-2xl font-bold text-foreground">{monthLabel}</h2>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setActiveMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
-                  aria-label="Next month"
-                >
-                  ›
-                </Button>
-              </div>
-
-              <Button
-                variant="outline"
-                onClick={() => {
-                  const now = new Date();
-                  setActiveMonth(new Date(now.getFullYear(), now.getMonth(), 1));
-                }}
-              >
-                Today
-              </Button>
-            </div>
-
-            <div className="mt-5 overflow-hidden rounded-2xl border border-border">
-              <div className="grid grid-cols-7 bg-muted/30">
-                {['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'].map((label) => (
-                  <div key={label} className="px-3 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground border-r last:border-r-0 border-border">
-                    {label}
-                  </div>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-7">
-                {calendarDays.map((day) => {
-                  const dayEvents = eventsByDay.get(day.iso) ?? [];
-                  const isToday = day.iso === todayISO;
-                  const isClickable = dayEvents.length > 0;
-
-                  return (
-                    <div
-                      key={day.iso}
-                      className={`min-h-[110px] border-r border-b border-border last:border-r-0 p-3 ${
-                        day.inMonth ? 'bg-background' : 'bg-muted/20'
-                      } ${isClickable ? 'cursor-pointer hover:bg-accent/30 transition-colors' : ''}`}
-                      role={isClickable ? 'button' : undefined}
-                      tabIndex={isClickable ? 0 : -1}
-                      onClick={() => openDayModal(day.iso)}
-                      onKeyDown={(e) => {
-                        if (!isClickable) return;
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          openDayModal(day.iso);
-                        }
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="flex flex-wrap items-center gap-3">
+                {viewMode === 'calendar' ? (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setActiveMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
+                        aria-label="Previous month"
+                      >
+                        ‹
+                      </Button>
+                      <h2 className="text-2xl font-bold text-foreground">{monthLabel}</h2>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setActiveMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
+                        aria-label="Next month"
+                      >
+                        ›
+                      </Button>
+                    </div>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        const now = new Date();
+                        setActiveMonth(new Date(now.getFullYear(), now.getMonth(), 1));
                       }}
                     >
-                      <div className="flex items-center justify-between">
-                        <span className={`text-sm font-semibold ${day.inMonth ? 'text-foreground' : 'text-muted-foreground'}`}>
-                          {day.date.getDate()}
-                        </span>
-                        {isToday && (
-                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-muted text-foreground">Today</span>
-                        )}
-                      </div>
+                      Today
+                    </Button>
+                  </>
+                ) : (
+                  <div className="space-y-0.5">
+                    <h2 className="text-2xl font-bold text-foreground">All Events</h2>
+                    <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">List view</p>
+                  </div>
+                )}
+              </div>
 
-                      <div className="mt-2 space-y-1">
-                        {dayEvents.map((ev) => {
-                          const eventColor = getEventColor(ev);
-                          const tooltip = [
-                            ev.title,
-                            ev.description,
-                            ev.venue,
-                            ev.location,
-                          ]
-                            .filter(Boolean)
-                            .join(' • ');
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.3em] text-muted-foreground">View</span>
+                <Button
+                  variant={viewMode === 'calendar' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewMode('calendar')}
+                >
+                  <CalendarDays className="w-4 h-4 mr-1" />
+                  Calendar
+                </Button>
+                <Button
+                  variant={viewMode === 'table' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewMode('table')}
+                >
+                  <Table className="w-4 h-4 mr-1" />
+                  Table
+                </Button>
+              </div>
+            </div>
 
-                          return (
-                            <div
-                              key={`${day.iso}-${ev.id}`}
-                              title={tooltip}
-                              className="w-full rounded-md px-2 py-1 text-xs font-semibold truncate"
-                              style={{
-                                backgroundColor: eventColor.background,
-                                color: eventColor.text,
-                                border: `1px solid ${eventColor.ring}`,
-                              }}
-                              role="button"
-                              tabIndex={0}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openDayModal(day.iso);
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                  e.preventDefault();
+            {viewMode === 'calendar' ? (
+              <div className="mt-5 overflow-hidden rounded-2xl border border-border">
+                <div className="grid grid-cols-7 bg-muted/30">
+                  {['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'].map((label) => (
+                    <div key={label} className="px-3 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground border-r last:border-r-0 border-border">
+                      {label}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-7">
+                  {calendarDays.map((day) => {
+                    const dayEvents = eventsByDay.get(day.iso) ?? [];
+                    const isToday = day.iso === todayISO;
+                    const isClickable = dayEvents.length > 0;
+
+                    return (
+                      <div
+                        key={day.iso}
+                        className={`min-h-[110px] border-r border-b border-border last:border-r-0 p-3 ${
+                          day.inMonth ? 'bg-background' : 'bg-muted/20'
+                        } ${isClickable ? 'cursor-pointer hover:bg-accent/30 transition-colors' : ''}`}
+                        role={isClickable ? 'button' : undefined}
+                        tabIndex={isClickable ? 0 : -1}
+                        onClick={() => openDayModal(day.iso)}
+                        onKeyDown={(e) => {
+                          if (!isClickable) return;
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            openDayModal(day.iso);
+                          }
+                        }}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className={`text-sm font-semibold ${day.inMonth ? 'text-foreground' : 'text-muted-foreground'}`}>
+                            {day.date.getDate()}
+                          </span>
+                          {isToday && (
+                            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-muted text-foreground">Today</span>
+                          )}
+                        </div>
+
+                        <div className="mt-2 space-y-1">
+                          {dayEvents.map((ev) => {
+                            const eventColor = getEventColor(ev);
+                            const tooltip = [
+                              ev.title,
+                              ev.description,
+                              ev.venue,
+                              ev.location,
+                            ]
+                              .filter(Boolean)
+                              .join(' • ');
+
+                            return (
+                              <div
+                                key={`${day.iso}-${ev.id}`}
+                                title={tooltip}
+                                className="w-full rounded-md px-2 py-1 text-xs font-semibold truncate"
+                                style={{
+                                  backgroundColor: eventColor.background,
+                                  color: eventColor.text,
+                                  border: `1px solid ${eventColor.ring}`,
+                                }}
+                                role="button"
+                                tabIndex={0}
+                                onClick={(e) => {
                                   e.stopPropagation();
                                   openDayModal(day.iso);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    openDayModal(day.iso);
+                                  }
+                                }}
+                              >
+                                {ev.title}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="mt-6 space-y-3">
+                <ScrollArea className="max-h-[420px] pr-2">
+                  <div className="rounded-2xl border border-border bg-background">
+                    <div className="grid grid-cols-12 gap-3 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.3em] text-muted-foreground border-b border-border">
+                      <span className="col-span-3">Date</span>
+                      <span className="col-span-4">Event</span>
+                      <span className="col-span-3">Project</span>
+                      <span className="col-span-2 text-right">Location</span>
+                    </div>
+                    {sortedVisibleEvents.length === 0 ? (
+                      <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                        No events available for the selected filters.
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-border">
+                        {tableEventsPage.map((event) => {
+                          const primaryDate = getEventPrimaryDate(event);
+                          const rowISO = primaryDate ? toISO(primaryDate) : null;
+                          const dateLabel =
+                            formatDateRange(event) ??
+                            primaryDate?.toLocaleDateString('en-GB') ??
+                            'Date TBD';
+                          const project = projectsById.get(event.project_id);
+                          const locationLabel = event.venue || event.location || 'Location TBD';
+                          return (
+                            <div
+                              key={event.id}
+                              role={rowISO ? 'button' : undefined}
+                              tabIndex={rowISO ? 0 : -1}
+                              onClick={() => rowISO && openDayModal(rowISO)}
+                              onKeyDown={(e) => {
+                                if (!rowISO) return;
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  openDayModal(rowISO);
                                 }
                               }}
+                              className="grid grid-cols-12 gap-3 px-4 py-4 items-center cursor-pointer hover:bg-muted/50 transition-colors"
                             >
-                              {ev.title}
+                              <div className="col-span-3 text-sm font-semibold text-foreground">
+                                {dateLabel}
+                              </div>
+                              <div className="col-span-4 space-y-1">
+                                <p className="text-sm font-semibold text-foreground truncate">{event.title}</p>
+                                {event.event_type && (
+                                  <p className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
+                                    {event.event_type}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="col-span-3 text-sm text-muted-foreground truncate">
+                                {project?.name ?? 'Project unknown'}
+                                {project?.code ? ` • ${project.code}` : ''}
+                              </div>
+                              <div className="col-span-2 text-sm text-muted-foreground text-right truncate">
+                                {locationLabel}
+                              </div>
                             </div>
                           );
                         })}
                       </div>
+                    )}
+                  </div>
+                </ScrollArea>
+                {sortedVisibleEvents.length > 0 && (
+                  <div className="flex items-center justify-between text-sm text-muted-foreground">
+                    <span>
+                      Showing {tableStartIndex}-{tableEndIndex} of {sortedVisibleEvents.length} events
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        disabled={tablePage === 1}
+                        onClick={() => setTablePage((prev) => Math.max(1, prev - 1))}
+                        aria-label="Previous page"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </Button>
+                      <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                        Page {tablePage} of {tableTotalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        disabled={tablePage === tableTotalPages}
+                        onClick={() => setTablePage((prev) => Math.min(tableTotalPages, prev + 1))}
+                        aria-label="Next page"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </Button>
                     </div>
-                  );
-                })}
+                  </div>
+                )}
               </div>
-            </div>
+            )}
 
             {loading && (
               <div className="mt-6 p-4 text-center text-sm font-semibold text-muted-foreground">
                 Loading events...
               </div>
             )}
-
-            {!loading && visibleEvents.length === 0 && (
+            {!loading && visibleEvents.length === 0 && viewMode === 'calendar' && (
               <div className="mt-6 p-4 text-center text-sm font-semibold text-muted-foreground">
                 No events found for the selected criteria.
               </div>
