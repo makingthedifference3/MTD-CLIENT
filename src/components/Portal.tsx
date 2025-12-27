@@ -118,7 +118,7 @@ export default function Portal() {
 
         const projectRowsList = projectRows ?? [];
         const projectIds = projectRowsList.map((project) => project.id).filter(Boolean);
-        let impactMetricsByProject: Record<string, ProjectImpactMetricRow[]> = {};
+        const impactMetricsByProject: Record<string, ProjectImpactMetricRow[]> = {};
 
         let mappedTimelines: Timeline[] = [];
         let mappedActivities: ProjectActivity[] = [];
@@ -400,11 +400,40 @@ export default function Portal() {
   const subcompanyChangeHandler = subcompanyFilterEnabled ? setSelectedSubcompany : undefined;
 
   const currentProject = collections.projects.find((p) => p.id === selectedProject);
-  const availableSubcompanyOptions = useMemo(() => {
-    const projectSubcompanyId = currentProject?.toll_id;
-    if (!projectSubcompanyId) return subcompanyOptions;
-    return subcompanyOptions.filter((option) => option.value === projectSubcompanyId);
-  }, [currentProject?.toll_id, subcompanyOptions]);
+  const constrainedSubcompanyOptions = useMemo(() => {
+    if (ownedSubcompanyId) return [];
+
+    // If a specific project is selected (via the shared filters), only show its subcompany.
+    if (projectFilters.selectedProjectGroup !== 'all') {
+      const selected = collections.projects.find((p) => p.id === projectFilters.selectedProjectGroup);
+      const projectSubcompanyId = selected?.toll_id;
+      if (!projectSubcompanyId) return subcompanyOptions;
+      return subcompanyOptions.filter((option) => option.value === projectSubcompanyId);
+    }
+
+    // If a state is selected, only show subcompanies that have projects in that state.
+    if (projectFilters.selectedState !== 'all') {
+      const allowed = new Set(
+        collections.projects
+          .filter((p) => p.state === projectFilters.selectedState)
+          .map((p) => p.toll_id)
+          .filter((value): value is string => typeof value === 'string' && value.length > 0)
+      );
+      return subcompanyOptions.filter((option) => allowed.has(option.value));
+    }
+
+    // Otherwise show all subcompanies.
+    return subcompanyOptions;
+  }, [collections.projects, ownedSubcompanyId, projectFilters.selectedProjectGroup, projectFilters.selectedState, subcompanyOptions]);
+
+  // If the user has a subcompany selected that is not valid for the active state/project filters, reset it.
+  useEffect(() => {
+    if (ownedSubcompanyId) return;
+    if (!subcompanyFilterEnabled) return;
+    if (selectedSubcompany === 'all') return;
+    if (constrainedSubcompanyOptions.some((option) => option.value === selectedSubcompany)) return;
+    setSelectedSubcompany('all');
+  }, [constrainedSubcompanyOptions, ownedSubcompanyId, selectedSubcompany, subcompanyFilterEnabled]);
 
   useEffect(() => {
     const projectSubcompanyId = currentProject?.toll_id;
@@ -462,7 +491,7 @@ export default function Portal() {
       <Sidebar
         currentView={currentView}
         onViewChange={handleViewChange}
-        subcompanyOptions={availableSubcompanyOptions}
+        subcompanyOptions={constrainedSubcompanyOptions}
         selectedSubcompany={selectedSubcompany}
         onSubcompanyChange={subcompanyChangeHandler}
       />
@@ -540,7 +569,7 @@ export default function Portal() {
                 activities={collections.activities}
                 expenses={collections.expenses}
                 onNavigate={handleViewChange}
-                subcompanyOptions={availableSubcompanyOptions}
+                subcompanyOptions={constrainedSubcompanyOptions}
                 selectedSubcompany={selectedSubcompany}
                 onSubcompanyChange={subcompanyChangeHandler}
                 onSelectProject={setSelectedProject}
@@ -554,7 +583,7 @@ export default function Portal() {
                 projectFilters={projectFilters}
                 brandColors={brandColors}
                 loading={dataLoading}
-                subcompanyOptions={availableSubcompanyOptions}
+                subcompanyOptions={constrainedSubcompanyOptions}
                 selectedSubcompany={selectedSubcompany}
                 onSubcompanyChange={subcompanyChangeHandler}
               />
@@ -567,7 +596,7 @@ export default function Portal() {
                 projectFilters={projectFilters}
                 brandColors={brandColors}
                 loading={dataLoading}
-                subcompanyOptions={availableSubcompanyOptions}
+                subcompanyOptions={constrainedSubcompanyOptions}
                 selectedSubcompany={selectedSubcompany}
                 onSubcompanyChange={subcompanyChangeHandler}
                 expenses={collections.expenses}
@@ -582,7 +611,7 @@ export default function Portal() {
                 projectFilters={projectFilters}
                 brandColors={brandColors}
                 loading={dataLoading}
-                subcompanyOptions={availableSubcompanyOptions}
+                subcompanyOptions={constrainedSubcompanyOptions}
                 selectedSubcompany={selectedSubcompany}
                 onSubcompanyChange={subcompanyChangeHandler}
               />
@@ -596,7 +625,7 @@ export default function Portal() {
                 projectFilters={projectFilters}
                 brandColors={brandColors}
                 loading={dataLoading}
-                subcompanyOptions={availableSubcompanyOptions}
+                subcompanyOptions={constrainedSubcompanyOptions}
                 selectedSubcompany={selectedSubcompany}
                 onSubcompanyChange={subcompanyChangeHandler}
               />
@@ -609,7 +638,7 @@ export default function Portal() {
                 projectFilters={projectFilters}
                 brandColors={brandColors}
                 loading={dataLoading}
-                subcompanyOptions={availableSubcompanyOptions}
+                subcompanyOptions={constrainedSubcompanyOptions}
                 selectedSubcompany={selectedSubcompany}
                 onSubcompanyChange={subcompanyChangeHandler}
               />
@@ -622,7 +651,7 @@ export default function Portal() {
                 projectFilters={projectFilters}
                 brandColors={brandColors}
                 loading={dataLoading}
-                subcompanyOptions={availableSubcompanyOptions}
+                subcompanyOptions={constrainedSubcompanyOptions}
                 selectedSubcompany={selectedSubcompany}
                 onSubcompanyChange={subcompanyChangeHandler}
               />

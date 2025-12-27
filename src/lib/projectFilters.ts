@@ -67,16 +67,27 @@ export function useProjectFilters({
     setSelectedProjectGroup(selectedProjectId);
   }, [selectedProjectId]);
 
+  const projectsForFilterOptions = useMemo(() => {
+    let working = projects;
+    if (selectedSubcompany && selectedSubcompany !== 'all') {
+      working = working.filter((project) => project.toll_id === selectedSubcompany);
+    }
+    if (selectedState && selectedState !== 'all') {
+      working = working.filter((project) => project.state === selectedState);
+    }
+    return working;
+  }, [projects, selectedState, selectedSubcompany]);
+
   const projectGroupOptions = useMemo<SelectOption[]>(
     () =>
-      projects
+      projectsForFilterOptions
         .map((project) => ({
           value: project.id,
           label: formatProjectLabel(project),
           description: project.description ?? undefined,
         }))
         .sort((a, b) => a.label.localeCompare(b.label)),
-    [projects]
+    [projectsForFilterOptions]
   );
 
   const selectedGroupProjects =
@@ -125,15 +136,12 @@ export function useProjectFilters({
       setSelectedState((current) => (current === value ? current : value));
     };
 
-    if (!selectedSubcompany || selectedSubcompany === 'all') {
-      applyState('all');
-      return;
-    }
-
-    const enforcedState = subcompanyStateLookup?.[selectedSubcompany];
-    if (enforcedState) {
-      applyState(enforcedState);
-      return;
+    if (selectedSubcompany && selectedSubcompany !== 'all') {
+      const enforcedState = subcompanyStateLookup?.[selectedSubcompany];
+      if (enforcedState) {
+        applyState(enforcedState);
+        return;
+      }
     }
 
     if (states.length === 1) {
